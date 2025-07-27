@@ -1,34 +1,41 @@
 version: '3.8'
+
 services:
-
-  db:
+  postgres:
     image: postgres:15
-    container_name: court-booking-db
-    restart: always
+    container_name: court_booking_db
     environment:
+      POSTGRES_USER: courtbooking
+      POSTGRES_PASSWORD: courtbooking123
       POSTGRES_DB: court_booking
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
     ports:
-      - "3306:5432"
+      - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - court_booking_network
 
-  myadmin:
-    image: adminer
-    container_name: court-booking-myadmin
-    restart: always
-    environment:
-      ADMINER_DEFAULT_SERVER: db
+  redis:
+    image: redis:7-alpine
+    container_name: court_booking_redis
     ports:
-      - "3310:8080"
+      - "6379:6379"
+    networks:
+      - court_booking_network
+
+  adminer:
+    image: adminer:latest
+    container_name: court_booking_adminer
+    ports:
+      - "8080:8080"
     depends_on:
-      - db
+      - postgres
+    networks:
+      - court_booking_network
 
 volumes:
-  db_data:
+  postgres_data:
+
+networks:
+  court_booking_network:
+    driver: bridge

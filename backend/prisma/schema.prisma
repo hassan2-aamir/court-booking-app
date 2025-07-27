@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  phoneNumber String   @unique
+  name        String
+  email       String?
+  cnic        String?
+  address     String?
+  role        Role     @default(CUSTOMER)
+  password    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  bookings    Booking[]
+  
+  @@map("users")
+}
+
+model Court {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  description String?
+  pricePerHour Float
+  isActive    Boolean  @default(true)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  bookings       Booking[]
+  availability   CourtAvailability[]
+  unavailability CourtUnavailability[]
+  
+  @@map("courts")
+}
+
+model CourtAvailability {
+  id        String @id @default(uuid())
+  courtId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  slotDuration Int @default(60)
+  maxBookingsPerUserPerDay Int @default(2)
+  
+  court     Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  
+  @@map("court_availability")
+}
+
+model CourtUnavailability {
+  id        String   @id @default(uuid())
+  courtId   String
+  date      DateTime
+  startTime String?
+  endTime   String?
+  reason    String
+  isRecurring Boolean @default(false)
+  
+  court     Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  
+  @@map("court_unavailability")
+}
+
+model Booking {
+  id        String        @id @default(uuid())
+  bookingId String        @unique
+  userId    String
+  courtId   String
+  date      DateTime
+  startTime String
+  endTime   String
+  duration  Int
+  status    BookingStatus @default(PENDING)
+  totalPrice Float
+  notes     String?
+  paymentStatus PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  
+  user      User         @relation(fields: [userId], references: [id])
+  court     Court        @relation(fields: [courtId], references: [id])
+  
+  @@map("bookings")
+}
+
+model SystemSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+  type  String
+  
+  @@map("system_settings")
+}
+
+enum Role {
+  CUSTOMER
+  MANAGER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
