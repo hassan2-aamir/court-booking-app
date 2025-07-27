@@ -11,11 +11,13 @@ export class UsersService {
   private prisma = new PrismaClient();
 
   create(createUserDto: CreateUserDto) {
-    return 'This action adds a new user';
+    return this.prisma.user.create({
+      data: createUserDto,
+    });
   }
 
   findAll() {
-    return `This action returns all users`;
+    return this.prisma.user.findMany();
   }
 
   async findByEmail(email: string) : Promise<UserResponseDto | null> {
@@ -26,7 +28,8 @@ export class UsersService {
     // Map user entity to UserResponseDto
     const userResponse: UserResponseDto = {
       id: user.id,
-      email: user.email,
+      email: user.email ?? null,
+      phoneNumber: user.phoneNumber,
       name: user.name,
       password: user.password,
       createdAt: user.createdAt,
@@ -35,15 +38,40 @@ export class UsersService {
     return userResponse;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findByPhone(phoneNumber: string) : Promise<UserResponseDto | null> {
+    const user = await this.prisma.user.findFirst({
+      where: { phoneNumber },
+    });
+    if (!user || !user.phoneNumber) return null;
+    // Map user entity to UserResponseDto
+    const userResponse: UserResponseDto = {
+      id: user.id,
+      email: user.email ?? null,
+      phoneNumber: user.phoneNumber,
+      name: user.name,
+      password: user.password,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+    return userResponse;
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  findOne(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  update(id: string, updateUserDto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id },
+      data: updateUserDto,
+    });
+  }
+
+  remove(id: string) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
   }
 }
