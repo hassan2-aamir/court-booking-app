@@ -2,13 +2,14 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import { login as apiLogin } from "./api/auth"
 
 interface User {
   id: string
-  name: string
-  email: string
-  role: "manager" | "admin"
-  avatar?: string
+  phone: string
+  //email: string
+  //role: "manager" | "admin"
+  //avatar?: string
   lastLogin: Date
 }
 
@@ -16,31 +17,14 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (phone: string, password: string) => Promise<void>
   signOut: () => void
-  resetPassword: (email: string) => Promise<void>
+  resetPassword: (phone: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const mockUsers = [
-  {
-    id: "1",
-    email: "manager@courtbooking.com",
-    password: "manager123",
-    name: "Ahmed Khan",
-    role: "manager" as const,
-    avatar: "/placeholder.svg?height=40&width=40",
-  },
-  {
-    id: "2",
-    email: "admin@courtbooking.com",
-    password: "admin123",
-    name: "Sara Ahmed",
-    role: "admin" as const,
-    avatar: "/placeholder.svg?height=40&width=40",
-  },
-]
+
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -60,49 +44,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const signIn = async (email: string, password: string): Promise<void> => {
-    setIsLoading(true)
-
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    const mockUser = mockUsers.find((u) => u.email === email && u.password === password)
-
-    if (!mockUser) {
-      setIsLoading(false)
-      throw new Error("Invalid credentials")
+  const signIn = async (phone: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      // Call backend login API
+      const result = await apiLogin({ phone, password });
+      // result: { access_token, user: { id, phone } }
+      const userData: User = {
+        id: result.user.id,
+        //name: result.user.phone, // No name in response, use phone as placeholder
+        phone: result.user.phone, // No email, use phone
+        //role: "manager", // Default/fallback, adjust if backend provides role
+        //avatar: "/placeholder.svg?height=40&width=40",
+        lastLogin: new Date(),
+        // @ts-ignore
+        token: result.access_token,
+      };
+      setUser(userData);
+      localStorage.setItem("auth-user", JSON.stringify(userData));
+      localStorage.setItem("access_token", result.access_token);
+    } catch (error: any) {
+      setIsLoading(false);
+      throw new Error(error?.message || "Login failed");
     }
-
-    const userData: User = {
-      id: mockUser.id,
-      name: mockUser.name,
-      email: mockUser.email,
-      role: mockUser.role,
-      avatar: mockUser.avatar,
-      lastLogin: new Date(),
-    }
-
-    setUser(userData)
-    localStorage.setItem("auth-user", JSON.stringify(userData))
-    setIsLoading(false)
+    setIsLoading(false);
   }
 
-  const signOut = () => {
-    setUser(null)
-    localStorage.removeItem("auth-user")
+  const signOut = async () => {
+    // Optionally call backend logout endpoint if available
+    try {
+      const token = user && (user as any).token;
+      await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001") + "/auth/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch (e) {
+      // Ignore errors, always clear local session
+    }
+    setUser(null);
+    localStorage.removeItem("auth-user");
+    localStorage.removeItem("access_token");
   }
 
-  const resetPassword = async (email: string): Promise<void> => {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    const userExists = mockUsers.some((u) => u.email === email)
-    if (!userExists) {
-      throw new Error("Email not found")
-    }
-
-    // In real app, this would send reset email
-    console.log(`Password reset link sent to ${email}`)
+  const resetPassword = async (phone: string): Promise<void> => {
+    // Replace with real API call if available
+    await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001") + "/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    // Optionally handle response or errors
   }
 
   const value = {

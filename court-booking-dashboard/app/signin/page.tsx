@@ -14,27 +14,28 @@ import { Eye, EyeOff, Mail, Lock, CheckCircle, BarChart3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function SignInPage() {
-  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [resetEmail, setResetEmail] = useState("")
+  const [resetPhone, setResetPhone] = useState("")
   const [isResetLoading, setIsResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ phone?: string; password?: string }>({})
 
   const { signIn, resetPassword } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {}
+    const newErrors: { phone?: string; password?: string } = {}
 
-    if (!email) {
-      newErrors.email = "Email is required"
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Please enter a valid email"
+    // Pakistani phone number validation: starts with +923, 11 digits
+                if (!phone) {
+                  newErrors.phone = "Phone number is required"
+                } else if (!/^\+923\d{9}$/.test(phone)) {
+                  newErrors.phone = "Enter a valid Pakistani phone number (e.g. +923XXXXXXXXX)"
     }
 
     if (!password) {
@@ -55,7 +56,7 @@ export default function SignInPage() {
     setIsLoading(true)
 
     try {
-      await signIn(email, password)
+      await signIn(phone, password)
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
@@ -66,7 +67,7 @@ export default function SignInPage() {
     } catch (error) {
       toast({
         title: "Sign in failed",
-        description: "Invalid email or password. Please try again.",
+        description: "Invalid phone number or password. Please try again.",
         type: "error",
         onClose: () => {},
       })
@@ -78,31 +79,31 @@ export default function SignInPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!resetEmail || !/\S+@\S+\.\S+/.test(resetEmail)) {
+    if (!resetPhone || !/^\+923\d{9}$/.test(resetPhone)) {
       toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address.",
+        title: "Invalid phone number",
+        description: "Please enter a valid Pakistani phone number (e.g. +923XXXXXXXXX).",
         type: "error",
         onClose: () => {},
       })
       return
     }
-      
+
     setIsResetLoading(true)
 
     try {
-      await resetPassword(resetEmail)
+      await resetPassword(resetPhone)
       setResetSuccess(true)
       toast({
         title: "Reset link sent!",
-        description: "Check your email for password reset instructions.",
+        description: "Check your SMS for password reset instructions.",
         type: "success",
         onClose: () => {},
       })
     } catch (error) {
       toast({
-        title: "Email not found",
-        description: "No account found with this email address.",
+        title: "Phone not found",
+        description: "No account found with this phone number.",
         type: "error",
         onClose: () => {},
       })
@@ -173,24 +174,26 @@ export default function SignInPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">
-                Email Address
+              <Label htmlFor="phone" className="text-gray-700 dark:text-gray-300">
+                Phone Number
               </Label>
               <div className="mt-1 relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
+                  id="phone"
+                  type="tel"
+                  value={phone}
                   onChange={(e) => {
-                    setEmail(e.target.value)
-                    if (errors.email) setErrors({ ...errors, email: undefined })
+                    setPhone(e.target.value)
+                    if (errors.phone) setErrors({ ...errors, phone: undefined })
                   }}
-                  placeholder="manager@courtbooking.com"
-                  className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
+                  placeholder="+923XXXXXXXXX"
+                  className={`pl-10 ${errors.phone ? "border-red-500" : ""}`}
+                  pattern="^\+923[0-9]{9}$"
+                  maxLength={13}
                 />
               </div>
-              {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+              {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
             </div>
 
             <div>
@@ -252,25 +255,27 @@ export default function SignInPage() {
                       <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Reset link sent!</h3>
                       <p className="text-gray-600 dark:text-gray-400">
-                        Check your email for password reset instructions.
+                        Check your SMS for password reset instructions.
                       </p>
                     </div>
                   ) : (
                     <form onSubmit={handleResetPassword} className="space-y-4">
                       <p className="text-gray-600 dark:text-gray-400">
-                        Enter your email address and we'll send you a link to reset your password.
+                        Enter your Pakistani phone number and we'll send you a link to reset your password.
                       </p>
                       <div>
-                        <Label htmlFor="resetEmail" className="text-gray-700 dark:text-gray-300">
-                          Email Address
+                        <Label htmlFor="resetPhone" className="text-gray-700 dark:text-gray-300">
+                          Phone Number
                         </Label>
                         <Input
-                          id="resetEmail"
-                          type="email"
-                          value={resetEmail}
-                          onChange={(e) => setResetEmail(e.target.value)}
-                          placeholder="Enter your email"
+                          id="resetPhone"
+                          type="tel"
+                          value={resetPhone}
+                          onChange={(e) => setResetPhone(e.target.value)}
+                          placeholder="+923XXXXXXXXX"
                           className="mt-1"
+                  pattern="^\+923[0-9]{9}$"
+                          maxLength={13}
                         />
                       </div>
                       <div className="flex space-x-3">
