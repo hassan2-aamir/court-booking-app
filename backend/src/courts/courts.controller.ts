@@ -21,6 +21,11 @@ export class CourtsController {
     return this.courtsService.findAll();
   }
 
+  @Post('availability-today/:id')
+  getAvailabilityToday(@Param('id') id: string) {
+    return this.courtsService.getAvailabilityToday(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.courtsService.findOne(id);

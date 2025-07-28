@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreateCourtDto } from './dto/create-court.dto';
+import { CourtAvailabilityDto, CreateCourtDto } from './dto/create-court.dto';
 import { UpdateCourtDto } from './dto/update-court.dto';
 import { PrismaService } from '../database/prisma.service';
-import { Court } from '@prisma/client';
+import { Court, CourtAvailability } from '@prisma/client';
 import { CourtResponseDto } from './dto/court-response.dto';
 
 @Injectable()
@@ -97,5 +97,22 @@ export class CourtsService {
       where: { id },
     });
 
+  }
+
+  getAvailabilityToday(id: string): Promise<CourtAvailabilityDto[]> {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 (Sunday) - 6 (Saturday)
+
+    return this.prisma.courtAvailability.findMany({
+      where: {
+        courtId: id,
+        dayOfWeek: dayOfWeek,
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+        dayOfWeek: true,
+      },
+    })
   }
 }

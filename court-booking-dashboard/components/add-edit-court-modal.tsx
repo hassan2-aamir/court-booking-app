@@ -13,19 +13,21 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Upload, Clock } from "lucide-react"
 
-interface Court {
-  id: string
-  name: string
-  type: "Tennis" | "Badminton" | "Basketball" | "Football" | "Squash"
-  pricePerHour: number
-  status: "Active" | "Inactive" | "Maintenance"
-  description: string
-  operatingHours: {
-    start: string
-    end: string
-  }
-  availableDays: string[]
-}
+import { updateCourt, createCourt } from "../lib/api/courts"
+
+type Court = {
+  id: string;
+  name: string;
+  type: string; // Accept string for compatibility with API
+  pricePerHour: number;
+  status?: "Active" | "Inactive";
+  bookingsToday?: number;
+  isAvailableNow?: boolean;
+  description?: string;
+  image?: string;
+  operatingHours?: { start: string; end: string };
+  availableDays?: string[];
+};
 
 interface AddEditCourtModalProps {
   isOpen: boolean
@@ -58,10 +60,10 @@ export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCou
         name: court.name,
         type: court.type,
         pricePerHour: court.pricePerHour,
-        description: court.description,
+        description: court.description ?? "",
         isActive: court.status === "Active",
-        operatingHours: court.operatingHours,
-        availableDays: court.availableDays,
+        operatingHours: court.operatingHours ?? { start: "08:00", end: "20:00" },
+        availableDays: court.availableDays ?? [],
       })
     } else {
       setFormData({
@@ -80,23 +82,57 @@ export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCou
   }, [court, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    onSave({
-      name: formData.name,
-      type: formData.type,
-      pricePerHour: formData.pricePerHour,
-      description: formData.description,
-      status: formData.isActive ? "Active" : "Inactive",
-      operatingHours: formData.operatingHours,
-      availableDays: formData.availableDays,
-    })
-
-    setIsLoading(false)
+    try {
+      
+      let result;
+      // Map availableDays and operatingHours to availability array for both create and update
+      const dayNameToNumber: Record<string, number> = {
+        Monday: 1,
+        Tuesday: 2,
+        Wednesday: 3,
+        Thursday: 4,
+        Friday: 5,
+        Saturday: 6,
+        Sunday: 7,
+      };
+      const availability = formData.availableDays.map((day) => ({
+        dayOfWeek: dayNameToNumber[day] ?? null,
+        startTime: formData.operatingHours.start,
+        endTime: formData.operatingHours.end,
+      }));
+      if (availability.length === 0) {
+        throw new Error("At least one available day must be selected");
+      }
+      if (court) {
+        // Update
+        result = await updateCourt(court.id, {
+          name: formData.name,
+          type: formData.type,
+          pricePerHour: formData.pricePerHour,
+          description: formData.description,
+          isActive: formData.isActive,
+          availability,
+        });
+      } else {
+        // Create
+        result = await createCourt({
+          name: formData.name,
+          type: formData.type,
+          pricePerHour: formData.pricePerHour,
+          description: formData.description,
+          isActive: formData.isActive,
+          availability,
+        });
+      }
+      onSave(result);
+    } catch (err) {
+      // Optionally show error
+      console.error(err);
+    }
+    setIsLoading(false);
   }
 
   const handleDayToggle = (day: string, checked: boolean) => {
