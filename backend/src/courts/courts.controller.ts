@@ -23,16 +23,16 @@ export class CourtsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.courtsService.findOne(+id);
+    return this.courtsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateCourtDto: UpdateCourtDto) {
-    return this.courtsService.update(+id, updateCourtDto);
+    return this.courtsService.update(id, updateCourtDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.courtsService.remove(+id);
+    return this.courtsService.remove(id);
   }
 }
