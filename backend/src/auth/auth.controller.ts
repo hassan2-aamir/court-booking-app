@@ -6,7 +6,6 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
 @Controller('auth')
-@ApiBearerAuth('JWT-auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
@@ -27,6 +26,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @Post('profile')
   getProfile(@Request() req) {
     return req.user;
