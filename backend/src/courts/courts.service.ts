@@ -75,17 +75,16 @@ export class CourtsService {
 
   update(id: string, updateCourtDto: UpdateCourtDto) {
     const { availability, ...courtData } = updateCourtDto as any;
+    
     return this.prisma.court.update({
       where: { id },
       data: {
         ...courtData,
         availability: availability
           ? {
-              upsert: availability.map((a: any) => ({
-                where: { id: a.id },
-                create: a,
-                update: a,
-              })),
+              // Delete existing availability and create new ones
+              deleteMany: {},
+              create: availability,
             }
           : undefined,
       },

@@ -9,11 +9,10 @@ import {
   getCourts,
   createCourt,
   updateCourt,
-  CourtResponseDto,
-  CreateCourtDto,
-  UpdateCourtDto,
   getAvailabilityToday,
-  deleteCourt
+  UpdateCourtDto,
+  deleteCourt,
+  Court
 } from "../lib/api/courts"
 import {
   Plus,
@@ -29,16 +28,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 
-// Court interface replaced by CourtResponseDto from API
-type Court = CourtResponseDto & {
-  status?: "Active" | "Inactive" 
-  bookingsToday?: number
-  isAvailableNow?: boolean
-  description?: string
-  image?: string
-  operatingHours?: { start: string; end: string }
-  availableDays?: string[]
-}
+
 
 
 
@@ -50,51 +40,63 @@ export function CourtsContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setLoading(true)
-    getCourts()
-      .then((data) => {
-        Promise.all(
-          data.map(async (court) => {
-            let isAvailableNow = false;
-            const todayAvailability = await getAvailabilityToday(court.id);
-            try {
-              // If any slot is available now, set true (customize as needed)
-              isAvailableNow = Array.isArray(todayAvailability) && todayAvailability.length > 0;
-            } catch {
-              isAvailableNow = false;
-            }
-            // Extract operating hours for today from today's availability
-            let operatingHours = undefined;
-            if (Array.isArray(todayAvailability) && todayAvailability.length > 0) {
-              const start = todayAvailability[0].startTime;
-              const end = todayAvailability[todayAvailability.length - 1].endTime;
-              operatingHours = { start, end };
-            }
+useEffect(() => {
+  setLoading(true)
+  getCourts()
+    .then((data) => {
+      Promise.all(
+        data.map(async (court) => {
+          let isAvailableNow = false;
+          const todayAvailability = await getAvailabilityToday(court.id);
+          try {
+            // If any slot is available now, set true (customize as needed)
+            isAvailableNow = Array.isArray(todayAvailability) && todayAvailability.length > 0;
+          } catch {
+            isAvailableNow = false;
+          }
+          // Extract operating hours for today from today's availability
+          let operatingHours = undefined;
+          if (Array.isArray(todayAvailability) && todayAvailability.length > 0) {
+            const start = todayAvailability[0].startTime;
+            const end = todayAvailability[todayAvailability.length - 1].endTime;
+            operatingHours = { start, end };
+          }
 
-            return {
-              ...court,
-              status: court.isActive ? "Active" as "Active" : "Inactive" as "Inactive",
-              bookingsToday: 0, // TODO: Replace with real data if available
-              isAvailableNow,
-              description: "", // Placeholder
-              image: "/placeholder.svg?height=200&width=300", //TODO: Replace with real image if available
-              operatingHours,
-              availableDays: court.availability
-              ? court.availability.map((a) =>
-                a.dayOfWeek !== null ? a.dayOfWeek.toString() : ""
+          // Convert availability to day names consistently
+          const dayNumberToName = [
+            "Sunday", "Monday", "Tuesday", "Wednesday", 
+            "Thursday", "Friday", "Saturday"
+          ];
+          
+          const availableDays = court.availability
+            ? court.availability
+                .map((a) =>
+                  typeof a.dayOfWeek === "number" && a.dayOfWeek >= 0 && a.dayOfWeek <= 6
+                    ? dayNumberToName[a.dayOfWeek]  // Convert to day name
+                    : null
                 )
-              : [],
-            };
-          })
-        ).then(setCourts);
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError("Failed to load courts")
-        setLoading(false)
-      })
-  }, [])
+                .filter((d) => d !== null) as string[]
+            : [];
+
+          return {
+            ...court,
+            status: court.isActive ? "Active" as "Active" : "Inactive" as "Inactive",
+            bookingsToday: 0, // TODO: Replace with real data if available
+            isAvailableNow,
+            description: "", // Placeholder
+            image: "/placeholder.svg?height=200&width=300", //TODO: Replace with real image if available
+            operatingHours,
+            availableDays, // Now consistently using day names
+          };
+        })
+      ).then(setCourts);
+      setLoading(false)
+    })
+    .catch((err) => {
+      setError("Failed to load courts")
+      setLoading(false)
+    })
+}, [])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -182,22 +184,89 @@ export function CourtsContent() {
     }
   }
 
-  const handleSaveCourt = async (courtData: Partial<Court>) => {
-    try {
-      if (editingCourt) {
-        // Update existing court
-        const updated = await updateCourt(editingCourt.id, courtData as UpdateCourtDto)
-        setCourts(courts.map((court) => (court.id === editingCourt.id ? { ...court, ...updated } : court)))
-      } else {
-        // Add new court
-        const created = await createCourt(courtData as CreateCourtDto)
-        setCourts([...courts, created])
-      }
-      setIsModalOpen(false)
-    } catch (err) {
-      setError("Failed to save court")
+
+  // Helper to normalize a court for frontend display (computed fields)
+  const normalizeCourt = (court: Court): Court => {
+    // Compute status, operatingHours, availableDays, etc. as in initial load
+    const status = court.isActive ? "Active" as const : "Inactive" as const;
+    const availableDays = Array.isArray((court as any).availability)
+      ? (court as any).availability
+          .map((a: any) =>
+            typeof a.dayOfWeek === "number" && a.dayOfWeek >= 0 && a.dayOfWeek <= 6
+              ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][a.dayOfWeek]
+              : null
+          )
+          .filter((d: string | null) => d !== null) as string[]
+      : court.availableDays ?? [];
+    // Compute operatingHours from availability if not present
+    let operatingHours = court.operatingHours;
+    if (!operatingHours && Array.isArray((court as any).availability) && (court as any).availability.length > 0) {
+      const av = (court as any).availability;
+      operatingHours = { start: av[0].startTime, end: av[av.length-1].endTime };
     }
+    return {
+      ...court,
+      status,
+      availableDays,
+      operatingHours,
+    };
+  };
+
+const handleSaveCourt = (savedCourt: Court) => {
+  console.log('SavedCourt from modal:', savedCourt);
+  
+  const dayNumberToName = [
+    "Sunday", "Monday", "Tuesday", "Wednesday", 
+    "Thursday", "Friday", "Saturday"
+  ];
+  
+  // First, try to get availableDays directly (from our workaround)
+  let availableDays = savedCourt.availableDays || [];
+  
+  // If not available, try to extract from availability array
+  if (availableDays.length === 0 && Array.isArray((savedCourt as any).availability)) {
+    availableDays = (savedCourt as any).availability
+      .map((a: any) => 
+        typeof a.dayOfWeek === "number" && a.dayOfWeek >= 0 && a.dayOfWeek <= 6
+          ? dayNumberToName[a.dayOfWeek]
+          : null
+      )
+      .filter((d: string | null) => d !== null) as string[];
   }
+  
+  // Get operating hours directly or from availability
+  let operatingHours = savedCourt.operatingHours;
+  if (!operatingHours && Array.isArray((savedCourt as any).availability) && (savedCourt as any).availability.length > 0) {
+    const av = (savedCourt as any).availability;
+    operatingHours = { start: av[0].startTime, end: av[av.length-1].endTime };
+  }
+  
+  const normalized: Court = {
+    ...savedCourt,
+    status: savedCourt.isActive ? "Active" : "Inactive",
+    availableDays,
+    operatingHours: operatingHours || { start: "08:00", end: "20:00" },
+    bookingsToday: editingCourt?.bookingsToday || 0,
+    isAvailableNow: editingCourt?.isAvailableNow || false,
+    description: savedCourt.description || "",
+    image: savedCourt.image || "/placeholder.svg?height=200&width=300",
+    slotDuration: savedCourt.slotDuration || 60,
+    maxBookingsPerUserPerDay: savedCourt.maxBookingsPerUserPerDay || 1,
+  };
+  
+  console.log('Normalized court with availableDays:', normalized.availableDays);
+  
+  if (editingCourt) {
+    setCourts(courts.map((court) => 
+      court.id === normalized.id 
+        ? { ...court, ...normalized } 
+        : court
+    ));
+  } else {
+    setCourts([...courts, normalized]);
+  }
+  setIsModalOpen(false);
+};
 
   return (
     <div className="flex-1 space-y-6 p-6">

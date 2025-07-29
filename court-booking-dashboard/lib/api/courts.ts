@@ -1,3 +1,15 @@
+// Unified Court type for frontend use
+export interface Court extends CourtResponseDto {
+  status?: "Active" | "Inactive";
+  bookingsToday?: number;
+  isAvailableNow?: boolean;
+  description?: string;
+  image?: string;
+  operatingHours?: { start: string; end: string };
+  availableDays?: string[];
+  slotDuration?: number;
+  maxBookingsPerUserPerDay?: number;
+}
 // Interfaces copied from backend DTOs
 export interface CourtAvailabilityDto {
   dayOfWeek: number;

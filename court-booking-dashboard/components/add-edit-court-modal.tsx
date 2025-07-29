@@ -13,30 +13,18 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Upload, Clock } from "lucide-react"
 
-import { updateCourt, createCourt } from "../lib/api/courts"
 
-type Court = {
-  id: string;
-  name: string;
-  type: string; // Accept string for compatibility with API
-  pricePerHour: number;
-  status?: "Active" | "Inactive";
-  bookingsToday?: number;
-  isAvailableNow?: boolean;
-  description?: string;
-  image?: string;
-  operatingHours?: { start: string; end: string };
-  availableDays?: string[];
-};
+import { updateCourt, createCourt, Court } from "../lib/api/courts"
+
 
 interface AddEditCourtModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: (courtData: Partial<Court>) => void
-  court: Court | null
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (courtData: Court) => void;
+  court: Court | null;
 }
 
-const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCourtModalProps) {
   const [formData, setFormData] = useState({
@@ -50,90 +38,147 @@ export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCou
       end: "20:00",
     },
     availableDays: [] as string[],
+    slotDuration: 60, // minutes, default
+    maxBookingsPerUserPerDay: 1, // default
   })
 
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    if (court) {
-      setFormData({
-        name: court.name,
-        type: court.type,
-        pricePerHour: court.pricePerHour,
-        description: court.description ?? "",
-        isActive: court.status === "Active",
-        operatingHours: court.operatingHours ?? { start: "08:00", end: "20:00" },
-        availableDays: court.availableDays ?? [],
-      })
-    } else {
-      setFormData({
-        name: "",
-        type: "Tennis",
-        pricePerHour: 0,
-        description: "",
-        isActive: true,
-        operatingHours: {
-          start: "08:00",
-          end: "20:00",
-        },
-        availableDays: [],
-      })
+  if (court) {
+    // Map court.availability (array of {dayOfWeek}) to day names for availableDays
+    const dayNumberToName = [
+      "Sunday",
+      "Monday",
+      "Tuesday", 
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    let availableDays: string[] = [];
+    
+    if (Array.isArray((court as any).availability)) {
+      availableDays = (court as any).availability
+        .map((a: any) => {
+          // Check for both number and null, and ensure it's a valid day
+          if (typeof a.dayOfWeek === "number" && a.dayOfWeek >= 0 && a.dayOfWeek <= 6) {
+            return dayNumberToName[a.dayOfWeek];
+          }
+          return null;
+        })
+        .filter((d: string | null) => d !== null) as string[];
+    } 
+    
+    // Always check for availableDays as fallback, regardless of availability array
+    if (availableDays.length === 0 && Array.isArray(court.availableDays)) {
+      availableDays = court.availableDays;
     }
-  }, [court, isOpen])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      
-      let result;
-      // Map availableDays and operatingHours to availability array for both create and update
-      const dayNameToNumber: Record<string, number> = {
-        Monday: 1,
-        Tuesday: 2,
-        Wednesday: 3,
-        Thursday: 4,
-        Friday: 5,
-        Saturday: 6,
-        Sunday: 7,
-      };
-      const availability = formData.availableDays.map((day) => ({
-        dayOfWeek: dayNameToNumber[day] ?? null,
-        startTime: formData.operatingHours.start,
-        endTime: formData.operatingHours.end,
-      }));
-      if (availability.length === 0) {
-        throw new Error("At least one available day must be selected");
-      }
-      if (court) {
-        // Update
-        result = await updateCourt(court.id, {
-          name: formData.name,
-          type: formData.type,
-          pricePerHour: formData.pricePerHour,
-          description: formData.description,
-          isActive: formData.isActive,
-          availability,
-        });
-      } else {
-        // Create
-        result = await createCourt({
-          name: formData.name,
-          type: formData.type,
-          pricePerHour: formData.pricePerHour,
-          description: formData.description,
-          isActive: formData.isActive,
-          availability,
-        });
-      }
-      onSave(result);
-    } catch (err) {
-      // Optionally show error
-      console.error(err);
-    }
-    setIsLoading(false);
+    
+    // Debug logging to see what's happening
+    console.log('Court availability:', (court as any).availability);
+    console.log('Court availableDays:', court.availableDays);
+    console.log('Mapped availableDays:', availableDays);
+    
+    setFormData({
+      name: court.name,
+      type: court.type,
+      pricePerHour: court.pricePerHour,
+      description: court.description ?? "",
+      isActive: court.status === "Active",
+      operatingHours: court.operatingHours ?? { start: "08:00", end: "20:00" },
+      availableDays,
+      slotDuration: court.slotDuration ?? 60,
+      maxBookingsPerUserPerDay: court.maxBookingsPerUserPerDay ?? 1,
+    });
+  } else {
+    setFormData({
+      name: "",
+      type: "Tennis",
+      pricePerHour: 0,
+      description: "",
+      isActive: true,
+      operatingHours: {
+        start: "",
+        end: "",
+      },
+      availableDays: [],
+      slotDuration: 60,
+      maxBookingsPerUserPerDay: 1,
+    });
   }
+  }, [court, isOpen]);
+
+  // In add-edit-court-modal.tsx, modify the handleSubmit function:
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (isLoading) return;
+  setIsLoading(true);
+
+  try {
+    let result;
+    const dayNameToNumber: Record<string, number> = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+    };
+    
+    const availability = formData.availableDays.map((day) => ({
+      dayOfWeek: dayNameToNumber[day],
+      startTime: formData.operatingHours.start,
+      endTime: formData.operatingHours.end,
+      slotDuration: formData.slotDuration ?? 60,
+      maxBookingsPerUserPerDay: formData.maxBookingsPerUserPerDay ?? 1,
+    }));
+    
+    if (availability.length === 0) {
+      throw new Error("At least one available day must be selected");
+    }
+
+    if (court) {
+      // Update
+      result = await updateCourt(court.id, {
+        name: formData.name,
+        type: formData.type,
+        pricePerHour: formData.pricePerHour,
+        description: formData.description,
+        isActive: formData.isActive,
+        availability,
+      });
+    } else {
+      // Create
+      result = await createCourt({
+        name: formData.name,
+        type: formData.type,
+        pricePerHour: formData.pricePerHour,
+        description: formData.description,
+        isActive: formData.isActive,
+        availability,
+      });
+    }
+
+    // WORKAROUND: Since API doesn't return availability, we'll add it manually
+    const enhancedResult = {
+      ...result,
+      availability: availability,
+      availableDays: formData.availableDays,
+      operatingHours: formData.operatingHours,
+      slotDuration: formData.slotDuration,
+      maxBookingsPerUserPerDay: formData.maxBookingsPerUserPerDay
+    };
+
+    onSave(enhancedResult);
+    onClose();
+  } catch (err) {
+    console.error(err);
+  }
+  setIsLoading(false);
+}
 
   const handleDayToggle = (day: string, checked: boolean) => {
     if (checked) {
@@ -247,10 +292,10 @@ export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCou
             </div>
           </div>
 
-          {/* Operating Hours */}
+          {/* Operating Hours and Slot Settings */}
           <div className="space-y-4">
-            <Label className="text-base font-medium text-gray-900 dark:text-gray-100">Operating Hours</Label>
-            <div className="grid grid-cols-2 gap-4">
+            <Label className="text-base font-medium text-gray-900 dark:text-gray-100">Operating Hours & Slot Settings</Label>
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label htmlFor="startTime">Start Time</Label>
                 <div className="relative">
@@ -288,8 +333,35 @@ export function AddEditCourtModal({ isOpen, onClose, onSave, court }: AddEditCou
                 </div>
               </div>
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="slotDuration">Slot Duration (minutes)</Label>
+                <Input
+                  id="slotDuration"
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={formData.slotDuration}
+                  onChange={(e) => setFormData({ ...formData, slotDuration: Number(e.target.value) })}
+                  placeholder="60"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxBookings">Max Bookings/User/Day</Label>
+                <Input
+                  id="maxBookings"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={formData.maxBookingsPerUserPerDay}
+                  onChange={(e) => setFormData({ ...formData, maxBookingsPerUserPerDay: Number(e.target.value) })}
+                  placeholder="1"
+                  required
+                />
+              </div>
+            </div>
           </div>
-
           {/* Available Days */}
           <div className="space-y-4">
             <Label className="text-base font-medium text-gray-900 dark:text-gray-100">Available Days</Label>
