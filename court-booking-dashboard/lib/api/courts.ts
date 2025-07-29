@@ -37,7 +37,9 @@ const API_BASE = /*process.env.NEXT_PUBLIC_API_URL+'/courts' ||*/ "http://localh
 export async function createCourt(data: CreateCourtDto): Promise<CourtResponseDto> {
   const res = await fetch(`${API_BASE}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+     },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to create court");
@@ -45,13 +47,22 @@ export async function createCourt(data: CreateCourtDto): Promise<CourtResponseDt
 }
 
 export async function getCourts(): Promise<CourtResponseDto[]> {
-  const res = await fetch(`${API_BASE}`);
+  const res = await fetch(`${API_BASE}`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+  });
   if (!res.ok) throw new Error("Failed to fetch courts");
   return res.json();
 }
 
 export async function getCourt(id: string): Promise<CourtResponseDto> {
-  const res = await fetch(`${API_BASE}/${id}`);
+  const res = await fetch(`${API_BASE}/${id}`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+
+  });
   if (!res.ok) throw new Error("Failed to fetch court");
   return res.json();
 }
@@ -59,7 +70,9 @@ export async function getCourt(id: string): Promise<CourtResponseDto> {
 export async function updateCourt(id: string, data: UpdateCourtDto): Promise<CourtResponseDto> {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" ,
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to update court");
@@ -69,12 +82,19 @@ export async function updateCourt(id: string, data: UpdateCourtDto): Promise<Cou
 export async function deleteCourt(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
   });
   if (!res.ok) throw new Error("Failed to delete court");
 }
 
 export async function getAvailabilityToday(id:string): Promise<CourtAvailabilityDto[]> {
-  const res = await fetch(`${API_BASE}/availability-today/${id}`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/availability-today/${id}`, { method: "POST" ,
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+  });
   if (!res.ok) throw new Error("Failed to fetch available courts");
   return res.json();
 }
