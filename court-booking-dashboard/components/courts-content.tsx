@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AddEditCourtModal } from "@/components/add-edit-court-modal"
+import { CourtScheduleModal } from "@/components/court-schedule-modal"
 import {
   getCourts,
   createCourt,
@@ -26,6 +27,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  Trash2,
 } from "lucide-react"
 
 
@@ -37,6 +39,8 @@ export function CourtsContent() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCourt, setEditingCourt] = useState<Court | null>(null)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+  const [selectedCourt, setSelectedCourt] = useState<Court | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -151,6 +155,11 @@ useEffect(() => {
     setIsModalOpen(true)
   }
 
+  const handleViewSchedule = (court: Court) => {
+    setSelectedCourt(court)
+    setIsScheduleModalOpen(true)
+  }
+
 
   const handleToggleStatus = async (courtId: string) => {
     const court = courts.find((c) => c.id === courtId);
@@ -176,13 +185,17 @@ useEffect(() => {
 
   const handleDeleteCourt = async (courtId: string) => {
     try {
-      // You may want to add a confirmation dialog here
+      if (!window.confirm("Are you sure you want to delete this court? This action cannot be undone.")) {
+        return;
+      }
       await deleteCourt(courtId);
       setCourts(courts.filter((court) => court.id !== courtId));
     } catch (err) {
       setError("Failed to delete court");
     }
   }
+  
+
 
 
   // Helper to normalize a court for frontend display (computed fields)
@@ -355,7 +368,7 @@ const handleSaveCourt = (savedCourt: Court) => {
                     <Edit className="h-3 w-3 mr-1" />
                     Edit
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 bg-transparent">
+                  <Button variant="outline" size="sm" className="flex-1 bg-transparent" onClick={() => handleViewSchedule(court)}>
                     <Eye className="h-3 w-3 mr-1" />
                     Schedule
                   </Button>
@@ -366,6 +379,15 @@ const handleSaveCourt = (savedCourt: Court) => {
                     onClick={() => handleToggleStatus(court.id)}
                   >
                     {court.status === "Active" ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 bg-transparent text-red-600 hover:bg-red-50"
+                    title="Delete Court"
+                    onClick={() => handleDeleteCourt(court.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -380,6 +402,13 @@ const handleSaveCourt = (savedCourt: Court) => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCourt}
         court={editingCourt}
+      />
+
+      {/* Court Schedule Modal */}
+      <CourtScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        court={selectedCourt}
       />
     </div>
   )
