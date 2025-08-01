@@ -1,9 +1,13 @@
 export class UserResponseDto {
     id: string;
-    email: string | null;
+    name: string;
     phoneNumber: string;
-    name: string | null;
-    password: string | null;
+    email?: string | null;
+    cnic?: string | null;
+    address?: string | null;
+    role: 'CUSTOMER' | 'MANAGER' | 'ADMIN';
+    isActive: boolean;
+    password?: string | null; // Usually omitted in responses for security
     createdAt: Date;
     updatedAt: Date;
 }

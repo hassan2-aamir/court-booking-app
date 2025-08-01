@@ -16,174 +16,17 @@ import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { BookingsSkeleton } from "@/components/loading-skeleton"
 import { useToast } from "@/components/toast-provider"
 import { debounce } from "@/lib/utils"
-import type { Booking } from "@/lib/types"
-
-const mockBookings: Booking[] = [
-  {
-    id: "1",
-    bookingId: "#BK001",
-    customerId: "1",
-    customer: {
-      id: "1",
-      name: "Ahmed Khan",
-      phone: "+92 300 1234567",
-      email: "ahmed.khan@email.com",
-      status: "Regular",
-      totalBookings: 25,
-      createdAt: "2023-06-15",
-    },
-    courtId: "1",
-    court: {
-      id: "1",
-      name: "Tennis Court A",
-      type: "Tennis",
-      pricePerHour: 1500,
-      status: "Active",
-      bookingsToday: 3,
-      isAvailableNow: false,
-      description: "Professional tennis court",
-      image: "/placeholder.svg",
-      operatingHours: { start: "06:00", end: "22:00" },
-      availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    },
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "09:00",
-    endTime: "10:00",
-    duration: 1,
-    amount: 1500,
-    status: "Confirmed",
-    paymentStatus: "Paid",
-    paymentMethod: "Cash",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    bookingId: "#BK002",
-    customerId: "2",
-    customer: {
-      id: "2",
-      name: "Sara Ali",
-      phone: "+92 301 2345678",
-      email: "sara.ali@email.com",
-      status: "VIP",
-      totalBookings: 45,
-      createdAt: "2023-03-10",
-    },
-    courtId: "3",
-    court: {
-      id: "3",
-      name: "Badminton Court 1",
-      type: "Badminton",
-      pricePerHour: 800,
-      status: "Active",
-      bookingsToday: 5,
-      isAvailableNow: false,
-      description: "Indoor badminton court",
-      image: "/placeholder.svg",
-      operatingHours: { start: "07:00", end: "23:00" },
-      availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    },
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "10:30",
-    endTime: "11:30",
-    duration: 1,
-    amount: 800,
-    status: "Pending",
-    paymentStatus: "Unpaid",
-    paymentMethod: "Cash",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    bookingId: "#BK003",
-    customerId: "3",
-    customer: {
-      id: "3",
-      name: "Muhammad Hassan",
-      phone: "+92 302 3456789",
-      email: "hassan@email.com",
-      status: "Regular",
-      totalBookings: 12,
-      createdAt: "2023-09-20",
-    },
-    courtId: "5",
-    court: {
-      id: "5",
-      name: "Basketball Court",
-      type: "Basketball",
-      pricePerHour: 1200,
-      status: "Active",
-      bookingsToday: 2,
-      isAvailableNow: true,
-      description: "Full-size basketball court",
-      image: "/placeholder.svg",
-      operatingHours: { start: "06:00", end: "21:00" },
-      availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    },
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "14:30",
-    endTime: "15:30",
-    duration: 1,
-    amount: 1200,
-    status: "Confirmed",
-    paymentStatus: "Paid",
-    paymentMethod: "Online",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
-
-const courts = [
-  {
-    id: "1",
-    name: "Tennis Court A",
-    type: "Tennis" as const,
-    pricePerHour: 1500,
-    status: "Active" as const,
-    bookingsToday: 3,
-    isAvailableNow: false,
-    description: "Professional tennis court",
-    image: "/placeholder.svg",
-    operatingHours: { start: "06:00", end: "22:00" },
-    availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-  },
-  {
-    id: "2",
-    name: "Tennis Court B",
-    type: "Tennis" as const,
-    pricePerHour: 1500,
-    status: "Active" as const,
-    bookingsToday: 1,
-    isAvailableNow: true,
-    description: "Professional tennis court",
-    image: "/placeholder.svg",
-    operatingHours: { start: "06:00", end: "22:00" },
-    availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-  },
-  {
-    id: "3",
-    name: "Badminton Court 1",
-    type: "Badminton" as const,
-    pricePerHour: 800,
-    status: "Active" as const,
-    bookingsToday: 5,
-    isAvailableNow: false,
-    description: "Indoor badminton court",
-    image: "/placeholder.svg",
-    operatingHours: { start: "07:00", end: "23:00" },
-    availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-  },
-]
+import * as bookingsApi from "@/lib/api/bookings"
+import { getCourts, Court } from "@/lib/api/courts"
 
 export function BookingsContent() {
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings)
-  const [filteredBookings, setFilteredBookings] = useState<Booking[]>(mockBookings)
-  const [isLoading, setIsLoading] = useState(false)
+  const [bookings, setBookings] = useState<bookingsApi.Booking[]>([])
+  const [filteredBookings, setFilteredBookings] = useState<bookingsApi.Booking[]>([])
+  const [courts, setCourts] = useState<Court[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<bookingsApi.Booking | null>(null)
   const [selectedBookings, setSelectedBookings] = useState<string[]>([])
 
   // Search and filter states
@@ -195,15 +38,58 @@ export function BookingsContent() {
 
   const { addToast } = useToast()
 
+  // Load bookings and courts on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        
+        // Debug authentication state
+        if (typeof window !== 'undefined') {
+          const token = localStorage.getItem('access_token')
+          if (!token) {
+            console.error('No access token found')
+            addToast({
+              type: "error",
+              title: "Authentication Error",
+              description: "No authentication token found. Please log in again.",
+            })
+            return
+          }
+        }
+        
+        const [bookingsData, courtsData] = await Promise.all([
+          bookingsApi.getBookings(),
+          getCourts()
+        ])
+        setBookings(bookingsData)
+        setFilteredBookings(bookingsData)
+        setCourts(courtsData)
+      } catch (error: any) {
+        console.error('Failed to load data:', error)
+        const isAuthError = error.message?.includes('Authentication') || error.message?.includes('Unauthorized')
+        addToast({
+          type: "error",
+          title: isAuthError ? "Authentication Error" : "Error loading data",
+          description: isAuthError ? "Please log in again to continue." : "Failed to load bookings and courts data",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce((term: string) => {
       const filtered = bookings.filter(
         (booking) =>
-          booking.customer.name.toLowerCase().includes(term.toLowerCase()) ||
-          booking.customer.phone.includes(term) ||
+          booking.user?.name.toLowerCase().includes(term.toLowerCase()) ||
+          booking.user?.phoneNumber.includes(term) ||
           booking.bookingId.toLowerCase().includes(term.toLowerCase()) ||
-          booking.court.name.toLowerCase().includes(term.toLowerCase()),
+          booking.court?.name.toLowerCase().includes(term.toLowerCase()),
       )
       setFilteredBookings(filtered)
       setCurrentPage(1)
@@ -219,21 +105,21 @@ export function BookingsContent() {
     if (searchTerm) {
       filtered = filtered.filter(
         (booking) =>
-          booking.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          booking.customer.phone.includes(searchTerm) ||
+          booking.user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          booking.user?.phoneNumber.includes(searchTerm) ||
           booking.bookingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          booking.court.name.toLowerCase().includes(searchTerm.toLowerCase()),
+          booking.court?.name.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
     // Apply status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((booking) => booking.status.toLowerCase() === statusFilter)
+      filtered = filtered.filter((booking) => booking.status.toLowerCase() === statusFilter.toUpperCase())
     }
 
     // Apply court filter
     if (courtFilter !== "all") {
-      filtered = filtered.filter((booking) => booking.court.name === courtFilter)
+      filtered = filtered.filter((booking) => booking.court?.name === courtFilter)
     }
 
     setFilteredBookings(filtered)
@@ -256,53 +142,92 @@ export function BookingsContent() {
 
   const handleRefresh = async () => {
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    addToast({
-      type: "success",
-      title: "Data refreshed",
-      description: "Bookings have been updated successfully",
-    })
+    try {
+      const bookingsData = await bookingsApi.getBookings()
+      setBookings(bookingsData)
+      setFilteredBookings(bookingsData)
+      addToast({
+        type: "success",
+        title: "Data refreshed",
+        description: "Bookings have been updated successfully",
+      })
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Refresh failed",
+        description: "Failed to refresh bookings data",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleBulkConfirm = () => {
-    const updatedBookings = bookings.map((booking) =>
-      selectedBookings.includes(booking.id) && booking.status === "Pending"
-        ? { ...booking, status: "Confirmed" as const }
-        : booking,
-    )
-    setBookings(updatedBookings)
-    setSelectedBookings([])
-    addToast({
-      type: "success",
-      title: "Bookings confirmed",
-      description: `${selectedBookings.length} booking(s) confirmed successfully`,
-    })
+  const handleBulkConfirm = async () => {
+    try {
+      const confirmPromises = selectedBookings
+        .filter(id => {
+          const booking = bookings.find(b => b.id === id)
+          return booking && booking.status === "PENDING"
+        })
+        .map(id => bookingsApi.confirmBooking(id))
+      
+      await Promise.all(confirmPromises)
+      
+      // Refresh bookings data
+      const updatedBookings = await bookingsApi.getBookings()
+      setBookings(updatedBookings)
+      setFilteredBookings(updatedBookings)
+      setSelectedBookings([])
+      
+      addToast({
+        type: "success",
+        title: "Bookings confirmed",
+        description: `${confirmPromises.length} booking(s) confirmed successfully`,
+      })
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Confirmation failed",
+        description: "Failed to confirm selected bookings",
+      })
+    }
   }
 
-  const handleStatusChange = (bookingId: string, newStatus: Booking["status"]) => {
-    const updatedBookings = bookings.map((booking) =>
-      booking.id === bookingId ? { ...booking, status: newStatus } : booking,
-    )
-    setBookings(updatedBookings)
-    addToast({
-      type: "success",
-      title: "Status updated",
-      description: `Booking status changed to ${newStatus}`,
-    })
+  const handleStatusChange = async (bookingId: string, newStatus: bookingsApi.Booking["status"]) => {
+    try {
+      await bookingsApi.updateBookingStatus(bookingId, newStatus)
+      
+      // Refresh bookings data
+      const updatedBookings = await bookingsApi.getBookings()
+      setBookings(updatedBookings)
+      setFilteredBookings(updatedBookings)
+      
+      addToast({
+        type: "success",
+        title: "Status updated",
+        description: `Booking status changed to ${newStatus}`,
+      })
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: "Status update failed",
+        description: "Failed to update booking status",
+      })
+    }
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "Confirmed":
+      case "CONFIRMED":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Confirmed</Badge>
-      case "Pending":
+      case "PENDING":
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
-      case "Cancelled":
+      case "CANCELLED":
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Cancelled</Badge>
-      case "Completed":
+      case "COMPLETED":
         return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Completed</Badge>
+      case "NO_SHOW":
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">No Show</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -310,12 +235,12 @@ export function BookingsContent() {
 
   const getPaymentBadge = (status: string) => {
     switch (status) {
-      case "Paid":
+      case "PAID":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">Paid</Badge>
-      case "Unpaid":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">Unpaid</Badge>
-      case "Partial":
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs">Partial</Badge>
+      case "PENDING":
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">Pending</Badge>
+      case "REFUNDED":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs">Refunded</Badge>
       default:
         return (
           <Badge variant="secondary" className="text-xs">
@@ -336,21 +261,21 @@ export function BookingsContent() {
   }
 
   // Map booking to flat structure for BookingDetailsModal
-  const mapBookingForModal = (booking: Booking | null) => {
+  const mapBookingForModal = (booking: bookingsApi.Booking | null) => {
     if (!booking) return null;
     return {
       id: booking.id,
       bookingId: booking.bookingId,
-      date: booking.date,
+      date: typeof booking.date === 'string' ? booking.date : booking.date.toISOString(),
       time: `${booking.startTime} - ${booking.endTime}`,
-      customerName: booking.customer.name,
-      customerPhone: booking.customer.phone,
-      courtName: booking.court.name,
-      courtType: booking.court.type,
-      duration: `${booking.duration} hour${booking.duration > 1 ? 's' : ''}`,
-      amount: booking.amount,
-      status: booking.status,
-      paymentStatus: booking.paymentStatus,
+      customerName: booking.user?.name || 'N/A',
+      customerPhone: booking.user?.phoneNumber || 'N/A',
+      courtName: booking.court?.name || 'N/A',
+      courtType: booking.court?.type || 'N/A',
+      duration: `${bookingsApi.getBookingDurationHours(booking.duration)} hour${bookingsApi.getBookingDurationHours(booking.duration) > 1 ? 's' : ''}`,
+      amount: booking.totalPrice,
+      status: booking.status.charAt(0) + booking.status.slice(1).toLowerCase() as "Confirmed" | "Pending" | "Cancelled" | "Completed",
+      paymentStatus: booking.paymentStatus.charAt(0) + booking.paymentStatus.slice(1).toLowerCase() as "Paid" | "Unpaid" | "Partial",
     };
   };
 
@@ -485,13 +410,13 @@ export function BookingsContent() {
 
                   <div className="space-y-2 text-sm">
                     <div>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{booking.customer.name}</span>
-                      <div className="text-gray-500 dark:text-gray-400">{booking.customer.phone}</div>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{booking.user?.name || 'N/A'}</span>
+                      <div className="text-gray-500 dark:text-gray-400">{booking.user?.phoneNumber || 'N/A'}</div>
                     </div>
 
                     <div>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{booking.court.name}</span>
-                      <div className="text-gray-500 dark:text-gray-400">{booking.court.type}</div>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{booking.court?.name || 'N/A'}</span>
+                      <div className="text-gray-500 dark:text-gray-400">{booking.court?.type || 'N/A'}</div>
                     </div>
 
                     <div className="flex justify-between">
@@ -504,7 +429,7 @@ export function BookingsContent() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium text-green-600">PKR {booking.amount.toLocaleString()}</div>
+                        <div className="font-medium text-green-600">PKR {booking.totalPrice.toLocaleString()}</div>
                         {getPaymentBadge(booking.paymentStatus)}
                       </div>
                     </div>
@@ -523,10 +448,10 @@ export function BookingsContent() {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    {booking.status === "Pending" && (
+                    {booking.status === "PENDING" && (
                       <Button
                         size="sm"
-                        onClick={() => handleStatusChange(booking.id, "Confirmed")}
+                        onClick={() => handleStatusChange(booking.id, "CONFIRMED")}
                         className="flex-1 bg-green-600 hover:bg-green-700 min-h-[44px]"
                       >
                         <Check className="h-4 w-4 mr-1" />
@@ -607,19 +532,19 @@ export function BookingsContent() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{booking.customer.name}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{booking.customer.phone}</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{booking.user?.name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{booking.user?.phoneNumber || 'N/A'}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{booking.court.name}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{booking.court.type}</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{booking.court?.name || 'N/A'}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{booking.court?.type || 'N/A'}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium text-green-600">PKR {booking.amount.toLocaleString()}</div>
+                          <div className="font-medium text-green-600">PKR {booking.totalPrice.toLocaleString()}</div>
                           {getPaymentBadge(booking.paymentStatus)}
                         </div>
                       </TableCell>
@@ -641,8 +566,8 @@ export function BookingsContent() {
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            {booking.status === "Pending" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(booking.id, "Confirmed")}>
+                            {booking.status === "PENDING" && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(booking.id, "CONFIRMED")}>
                                 <Check className="mr-2 h-4 w-4" />
                                 Confirm Booking
                               </DropdownMenuItem>
@@ -704,14 +629,17 @@ export function BookingsContent() {
           setBookings([newBooking, ...bookings])
           setIsModalOpen(false)
         }}
-        courts={courts}
+        courts={courts as any}
       />
 
       <BookingDetailsModal
         booking={mapBookingForModal(selectedBooking)}
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
-        onStatusChange={handleStatusChange}
+        onStatusChange={async (bookingId: string, newStatus: "Confirmed" | "Pending" | "Cancelled" | "Completed") => {
+          const apiStatus = newStatus.toUpperCase() as bookingsApi.Booking["status"]
+          await handleStatusChange(bookingId, apiStatus)
+        }}
       />
     </div>
   )

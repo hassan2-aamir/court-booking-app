@@ -26,14 +26,40 @@ import {
   Loader2,
 } from "lucide-react"
 import { format } from "date-fns"
-import { searchCustomers, getCustomerByPhone, getAvailableTimeSlots, createBooking } from "@/lib/api"
-import type { Customer, Court, TimeSlot, BookingFormData } from "@/lib/types"
+import * as bookingsApi from "@/lib/api/bookings"
+import * as usersApi from "@/lib/api/users"
+import * as courtsApi from "@/lib/api/courts"
+
+interface TimeSlot {
+  id: string
+  startTime: string
+  endTime: string
+  price: number
+  status: "Available" | "Booked" | "Blocked"
+}
 
 interface AddBookingModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (booking: any) => void
-  courts: Court[]
+  onSuccess: (booking: bookingsApi.Booking) => void
+  courts: courtsApi.Court[]
+}
+
+interface BookingFormData {
+  customer: {
+    id?: string
+    name: string
+    phone: string
+    email: string
+    cnic: string
+    address: string
+  }
+  courtId: string
+  date: string
+  startTime: string
+  duration: number
+  paymentMethod: string
+  notes: string
 }
 
 const steps = [
@@ -48,14 +74,14 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<Customer[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  const [selectedCourt, setSelectedCourt] = useState<Court | null>(null)
+  const [searchResults, setSearchResults] = useState<usersApi.User[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<usersApi.User | null>(null)
+  const [selectedCourt, setSelectedCourt] = useState<courtsApi.Court | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [duration, setDuration] = useState(1)
-  const [createdBooking, setCreatedBooking] = useState<any>(null)
+  const [createdBooking, setCreatedBooking] = useState<bookingsApi.Booking | null>(null)
 
   const [formData, setFormData] = useState<BookingFormData>({
     customer: {
@@ -100,7 +126,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
     if (query.length > 2) {
       setIsLoading(true)
       try {
-        const results = await searchCustomers(query)
+        const results = await usersApi.searchCustomers(query)
         setSearchResults(results)
       } catch (error) {
         console.error("Search failed:", error)
@@ -119,7 +145,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
     if (phone.length >= 11) {
       setIsLoading(true)
       try {
-        const customer = await getCustomerByPhone(phone)
+        const customer = await usersApi.getCustomerByPhone(phone)
         if (customer) {
           setSelectedCustomer(customer)
           setFormData({
@@ -127,7 +153,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
             customer: {
               id: customer.id,
               name: customer.name,
-              phone: customer.phone,
+              phone: customer.phoneNumber,
               email: customer.email || "",
               cnic: customer.cnic || "",
               address: customer.address || "",
@@ -142,21 +168,61 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
     }
   }
 
+  // Generate available time slots based on court availability
+  const generateTimeSlots = (court: courtsApi.Court, date: Date): TimeSlot[] => {
+    const slots: TimeSlot[] = []
+    const dateDay = date.getDay() // 0 = Sunday, 1 = Monday, etc.
+    
+    // Find availability for the selected day
+    const dayAvailability = court.availability?.find(av => av.dayOfWeek === dateDay)
+    
+    if (!dayAvailability || !dayAvailability.startTime || !dayAvailability.endTime) {
+      return slots
+    }
+
+    const startTime = dayAvailability.startTime
+    const endTime = dayAvailability.endTime
+    const slotDuration = court.slotDuration || 60 // minutes
+    
+    // Parse start and end times
+    const [startHour, startMinute] = startTime.split(':').map(Number)
+    const [endHour, endMinute] = endTime.split(':').map(Number)
+    
+    let currentHour = startHour
+    let currentMinute = startMinute
+    let slotId = 1
+    
+    while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
+      const nextHour = currentHour + Math.floor((currentMinute + slotDuration) / 60)
+      const nextMinute = (currentMinute + slotDuration) % 60
+      
+      if (nextHour < endHour || (nextHour === endHour && nextMinute <= endMinute)) {
+        const slotStart = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
+        const slotEnd = `${nextHour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
+        
+        slots.push({
+          id: `slot-${slotId}`,
+          startTime: slotStart,
+          endTime: slotEnd,
+          price: court.pricePerHour,
+          status: "Available"
+        })
+        
+        slotId++
+      }
+      
+      currentHour = nextHour
+      currentMinute = nextMinute
+    }
+    
+    return slots
+  }
+
   // Load available time slots when court and date are selected
   useEffect(() => {
     if (selectedCourt && selectedDate) {
-      const loadSlots = async () => {
-        setIsLoading(true)
-        try {
-          const slots = await getAvailableTimeSlots(selectedCourt.id, format(selectedDate, "yyyy-MM-dd"))
-          setAvailableSlots(slots)
-        } catch (error) {
-          console.error("Failed to load slots:", error)
-        } finally {
-          setIsLoading(false)
-        }
-      }
-      loadSlots()
+      const slots = generateTimeSlots(selectedCourt, selectedDate)
+      setAvailableSlots(slots)
     }
   }, [selectedCourt, selectedDate])
 
@@ -190,15 +256,41 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
 
     setIsLoading(true)
     try {
-      const bookingData: BookingFormData = {
-        ...formData,
+      // Create or get customer
+      let customerId = formData.customer.id
+      
+      if (!customerId) {
+        // Create new customer
+        const newCustomer = await usersApi.createUser({
+          name: formData.customer.name,
+          phoneNumber: formData.customer.phone,
+          email: formData.customer.email || undefined,
+          cnic: formData.customer.cnic || undefined,
+          address: formData.customer.address || undefined,
+          role: 'CUSTOMER'
+        })
+        customerId = newCustomer.id
+      }
+
+      // Calculate duration in minutes
+      const durationMinutes = duration * 60
+
+      // Create booking
+      const bookingData: bookingsApi.CreateBookingDto = {
+        bookingId: bookingsApi.generateBookingId(),
+        userId: customerId,
         courtId: selectedCourt.id,
         date: format(selectedDate, "yyyy-MM-dd"),
         startTime: selectedSlot.startTime,
-        duration,
+        endTime: selectedSlot.endTime,
+        duration: durationMinutes,
+        totalPrice: calculateTotal(),
+        notes: formData.notes || undefined,
+        status: 'PENDING',
+        paymentStatus: 'PENDING'
       }
 
-      const booking = await createBooking(bookingData)
+      const booking = await bookingsApi.createBooking(bookingData)
       setCreatedBooking(booking)
       setCurrentStep(5)
       onSuccess(booking)
@@ -244,7 +336,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
                             customer: {
                               id: customer.id,
                               name: customer.name,
-                              phone: customer.phone,
+                              phone: customer.phoneNumber,
                               email: customer.email || "",
                               cnic: customer.cnic || "",
                               address: customer.address || "",
@@ -255,7 +347,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
                         }}
                       >
                         <div className="font-medium">{customer.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{customer.phoneNumber}</div>
                       </div>
                     ))}
                   </div>
@@ -600,7 +692,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600 dark:text-gray-300">Customer:</span>
-                      <div className="font-medium">{createdBooking.customer.name}</div>
+                      <div className="font-medium">{createdBooking.user?.name || formData.customer.name}</div>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-300">Court:</span>
@@ -615,7 +707,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-300">Total Amount:</span>
-                      <div className="font-medium text-green-600">PKR {createdBooking.amount.toLocaleString()}</div>
+                      <div className="font-medium text-green-600">PKR {createdBooking.totalPrice.toLocaleString()}</div>
                     </div>
                   </div>
                 </CardContent>

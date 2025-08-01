@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { Role } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
@@ -17,8 +18,21 @@ export class UsersController {
   }
 
   @Get()
-  findAll() {
+  findAll(@Query('role') role?: string) {
+    if (role) {
+      return this.usersService.findByRole(role as Role);
+    }
     return this.usersService.findAll();
+  }
+
+  @Get('search')
+  searchUsers(@Query('q') query: string, @Query('role') role?: string) {
+    return this.usersService.searchUsers(query, role as Role);
+  }
+
+  @Get('phone/:phoneNumber')
+  findByPhone(@Param('phoneNumber') phoneNumber: string) {
+    return this.usersService.findByPhone(phoneNumber);
   }
 
   @Get(':id')
