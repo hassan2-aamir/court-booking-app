@@ -82,6 +82,9 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [duration, setDuration] = useState(1)
   const [createdBooking, setCreatedBooking] = useState<bookingsApi.Booking | null>(null)
+  const [courtTypeFilter, setCourtTypeFilter] = useState("all")
+  const [localCourts, setLocalCourts] = useState<courtsApi.Court[]>([])
+  const [courtsLoading, setCourtsLoading] = useState(false)
 
   const [formData, setFormData] = useState<BookingFormData>({
     customer: {
@@ -108,6 +111,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
       setSelectedDate(undefined)
       setSelectedSlot(null)
       setCreatedBooking(null)
+      setCourtTypeFilter("all")
       setFormData({
         customer: { name: "", phone: "", email: "", cnic: "", address: "" },
         courtId: "",
@@ -117,8 +121,29 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
         paymentMethod: "Cash",
         notes: "",
       })
+    } else {
+      // Debug: Check courts data when modal opens
+      console.log('Courts passed to AddBookingModal:', courts)
+      console.log('Number of courts:', courts?.length || 0)
+      console.log('Active courts:', courts?.filter(c => c.isActive)?.length || 0)
+      
+      // If no courts provided via props, fetch them
+      if (!courts || courts.length === 0) {
+        setCourtsLoading(true)
+        courtsApi.getCourts()
+          .then((fetchedCourts) => {
+            console.log('Fetched courts:', fetchedCourts)
+            setLocalCourts(fetchedCourts as courtsApi.Court[])
+          })
+          .catch((error) => {
+            console.error('Failed to fetch courts:', error)
+          })
+          .finally(() => {
+            setCourtsLoading(false)
+          })
+      }
     }
-  }, [isOpen])
+  }, [isOpen, courts])
 
   // Customer search
   const handleCustomerSearch = async (query: string) => {
@@ -275,12 +300,17 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
       // Calculate duration in minutes
       const durationMinutes = duration * 60
 
+      // Validate required data
+      if (!customerId || !selectedCourt.id || !selectedDate || !selectedSlot) {
+        throw new Error('Missing required booking information')
+      }
+
       // Create booking
       const bookingData: bookingsApi.CreateBookingDto = {
         bookingId: bookingsApi.generateBookingId(),
         userId: customerId,
         courtId: selectedCourt.id,
-        date: format(selectedDate, "yyyy-MM-dd"),
+        date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
         startTime: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
         duration: durationMinutes,
@@ -290,7 +320,15 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
         paymentStatus: 'PENDING'
       }
 
-      const booking = await bookingsApi.createBooking(bookingData)
+      console.log('Booking data being sent:', bookingData)
+      
+      // Remove undefined values to avoid issues
+      const cleanedBookingData = Object.fromEntries(
+        Object.entries(bookingData).filter(([_, value]) => value !== undefined)
+      ) as bookingsApi.CreateBookingDto
+
+      console.log('Cleaned booking data:', cleanedBookingData)
+      const booking = await bookingsApi.createBooking(cleanedBookingData)
       setCreatedBooking(booking)
       setCurrentStep(5)
       onSuccess(booking)
@@ -446,66 +484,89 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
         )
 
       case 2:
+        const availableCourts = courts && courts.length > 0 ? courts : localCourts
         return (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
-              <Select defaultValue="all">
+              <Select value={courtTypeFilter} onValueChange={setCourtTypeFilter}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Courts</SelectItem>
-                  <SelectItem value="tennis">Tennis</SelectItem>
-                  <SelectItem value="badminton">Badminton</SelectItem>
-                  <SelectItem value="basketball">Basketball</SelectItem>
+                  <SelectItem value="Tennis">Tennis</SelectItem>
+                  <SelectItem value="Badminton">Badminton</SelectItem>
+                  <SelectItem value="Basketball">Basketball</SelectItem>
+                  <SelectItem value="Football">Football</SelectItem>
+                  <SelectItem value="Squash">Squash</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-              {courts
-                .filter((court) => court.status === "Active")
-                .map((court) => (
-                  <Card
-                    key={court.id}
-                    className={`cursor-pointer transition-all ${
-                      selectedCourt?.id === court.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
-                    }`}
-                    onClick={() => {
-                      setSelectedCourt(court)
-                      setFormData({ ...formData, courtId: court.id })
-                    }}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{court.name}</CardTitle>
-                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{court.type}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-300">Price per hour</span>
-                          <span className="font-semibold text-green-600">
-                            PKR {court.pricePerHour.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-300">Status</span>
-                          <Badge
-                            className={
-                              court.isAvailableNow
-                                ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                : "bg-red-100 text-red-800 hover:bg-red-100"
-                            }
-                          >
-                            {court.isAvailableNow ? "Available" : "Occupied"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              {courtsLoading ? (
+                <div className="col-span-2 text-center py-8 text-gray-500">
+                  Loading courts...
+                </div>
+              ) : availableCourts && availableCourts.length > 0 ? (
+                availableCourts
+                  .filter((court) => court.isActive === true)
+                  .filter((court) => courtTypeFilter === "all" || court.type === courtTypeFilter)
+                  .length > 0 ? (
+                  availableCourts
+                    .filter((court) => court.isActive === true)
+                    .filter((court) => courtTypeFilter === "all" || court.type === courtTypeFilter)
+                    .map((court) => (
+                      <Card
+                        key={court.id}
+                        className={`cursor-pointer transition-all ${
+                          selectedCourt?.id === court.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
+                        }`}
+                        onClick={() => {
+                          setSelectedCourt(court)
+                          setFormData({ ...formData, courtId: court.id })
+                        }}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">{court.name}</CardTitle>
+                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{court.type}</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">Price per hour</span>
+                              <span className="font-semibold text-green-600">
+                                PKR {court.pricePerHour.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">Status</span>
+                              <Badge
+                                className={
+                                  court.isAvailableNow
+                                    ? "bg-green-100 text-green-800 hover:bg-green-100"
+                                    : "bg-red-100 text-red-800 hover:bg-red-100"
+                                }
+                              >
+                                {court.isAvailableNow ? "Available" : "Occupied"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                ) : (
+                  <div className="col-span-2 text-center py-8 text-gray-500">
+                    No {courtTypeFilter === "all" ? "" : courtTypeFilter.toLowerCase()} courts available
+                  </div>
+                )
+              ) : (
+                <div className="col-span-2 text-center py-8 text-gray-500">
+                  No courts found. Please check your connection or contact support.
+                </div>
+              )}
             </div>
           </div>
         )

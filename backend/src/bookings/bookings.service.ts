@@ -32,7 +32,7 @@ export class BookingsService {
       const conflictingBooking = await this.prisma.booking.findFirst({
         where: {
           courtId: createBookingDto.courtId,
-          date: createBookingDto.date,
+          date: new Date(createBookingDto.date), // Convert string to Date for comparison
           status: {
             not: BookingStatus.CANCELLED,
           },
@@ -66,6 +66,7 @@ export class BookingsService {
       return await this.prisma.booking.create({
         data: {
           ...createBookingDto,
+          date: new Date(createBookingDto.date), // Convert string to Date object
           status: createBookingDto.status || BookingStatus.PENDING,
           paymentStatus: createBookingDto.paymentStatus || PaymentStatus.PENDING,
         },

@@ -43,7 +43,7 @@ export interface CreateBookingDto {
   bookingId: string
   userId: string
   courtId: string
-  date: Date | string
+  date: string // YYYY-MM-DD format
   startTime: string
   endTime: string
   duration: number
