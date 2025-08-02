@@ -358,32 +358,38 @@ const handleSaveCourt = (savedCourt: Court) => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2 min-h-[32px]">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 bg-transparent"
+                    className="flex-1 min-w-[60px] bg-transparent"
                     onClick={() => handleEditCourt(court)}
                   >
                     <Edit className="h-3 w-3 mr-1" />
-                    Edit
+                    <span className="hidden sm:inline">Edit</span>
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 bg-transparent" onClick={() => handleViewSchedule(court)}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 min-w-[80px] bg-transparent" 
+                    onClick={() => handleViewSchedule(court)}
+                  >
                     <Eye className="h-3 w-3 mr-1" />
-                    Schedule
+                    <span className="hidden sm:inline">Schedule</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className={`px-3 ${court.status === "Active" ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"} bg-transparent`}
+                    className={`flex-shrink-0 px-3 min-w-[40px] ${court.status === "Active" ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"} bg-transparent`}
                     onClick={() => handleToggleStatus(court.id)}
+                    title={court.status === "Active" ? "Deactivate Court" : "Activate Court"}
                   >
                     {court.status === "Active" ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 bg-transparent text-red-600 hover:bg-red-50"
+                    className="flex-shrink-0 px-3 min-w-[40px] bg-transparent text-red-600 hover:bg-red-50"
                     title="Delete Court"
                     onClick={() => handleDeleteCourt(court.id)}
                   >
