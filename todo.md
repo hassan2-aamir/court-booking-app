@@ -1,11 +1,18 @@
 court operating times ✅
 delete court ✅
 implement schedule ✅
-bookings
+bookings ✅
+light dark mode switch
+fix status filter
+fix search with filter set
+implement edit bookings
+redis for bookings fetch
+pagination proper
 settings related to court within court
 unavailability
 Number of bookings in court
-Occupied available
+Occupied available implementation
 images
 whatsapp
-light dark mode switch
+implement/remove export in bookings
+
