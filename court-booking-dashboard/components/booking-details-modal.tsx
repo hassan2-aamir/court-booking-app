@@ -102,7 +102,14 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800"
+        onCloseAutoFocus={(event) => {
+          // Prevent focus issues when modal closes
+          event.preventDefault()
+          // Allow natural focus handling without conflicts
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Booking Details - {booking.bookingId}</DialogTitle>
         </DialogHeader>
@@ -131,14 +138,6 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                       {booking.customerPhone}
                     </p>
                   </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Email Address</label>
-                  <p className="text-lg text-gray-900 dark:text-gray-100">ahmed.khan@email.com</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Member Since</label>
-                  <p className="text-lg text-gray-900 dark:text-gray-100">January 2023</p>
                 </div>
               </CardContent>
             </Card>

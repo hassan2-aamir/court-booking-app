@@ -114,7 +114,7 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
@@ -141,6 +141,10 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
                 side="bottom"
                 align="end"
                 sideOffset={4}
+                onCloseAutoFocus={(event) => {
+                  // Prevent focus conflicts
+                  event.preventDefault()
+                }}
               >
                 <DropdownMenuItem asChild>
                   <a href="/profile" className="flex items-center gap-2 cursor-pointer">

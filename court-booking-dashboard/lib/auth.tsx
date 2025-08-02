@@ -7,9 +7,9 @@ import { login as apiLogin } from "./api/auth"
 interface User {
   id: string
   phone: string
-  //email: string
-  //role: "manager" | "admin"
-  //avatar?: string
+  name?: string
+  role?: "manager" | "admin"
+  avatar?: string
   lastLogin: Date
 }
 

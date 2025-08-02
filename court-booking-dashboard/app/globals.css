@@ -29,7 +29,29 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+    
+    /* Accessibility improvements for focus management */
+    --focus-ring: 221.2 83.2% 53.3%;
   }
+
+  /* Improve focus management for elements inside modals/dropdowns */
+  [aria-hidden="true"] {
+    pointer-events: none;
+  }
+  
+  [aria-hidden="true"] * {
+    pointer-events: none;
+  }
+  
+  /* Allow popper content to receive pointer events even when parent has aria-hidden */
+  [data-radix-popper-content-wrapper] [aria-hidden="true"] {
+    pointer-events: auto;
+  }
+  
+  [data-radix-popper-content-wrapper] [aria-hidden="true"] * {
+    pointer-events: auto;
+  }
+  
 
   .dark {
     --background: 222.2 84% 4.9%;

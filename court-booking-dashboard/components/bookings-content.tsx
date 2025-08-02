@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +16,7 @@ import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { BookingsSkeleton } from "@/components/loading-skeleton"
 import { useToast } from "@/components/toast-provider"
 import { debounce } from "@/lib/utils"
+import { safeFocus } from "@/lib/focus-utils"
 import * as bookingsApi from "@/lib/api/bookings"
 import { getCourts, Court } from "@/lib/api/courts"
 
@@ -28,16 +29,61 @@ export function BookingsContent() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<bookingsApi.Booking | null>(null)
   const [selectedBookings, setSelectedBookings] = useState<string[]>([])
-
-  // Search and filter states
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [courtFilter, setCourtFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  
+  // Add state for managing dropdown open states to prevent focus conflicts
+  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({})
 
+  const handleDropdownOpenChange = (bookingId: string, open: boolean) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [bookingId]: open
+    }))
+  }
+
+  // All hooks that depend on context/external libraries
   const { addToast } = useToast()
 
+  // All useMemo and useCallback hooks
+  const mappedBooking = useMemo(() => {
+    if (!selectedBooking) return null;
+    return {
+      id: selectedBooking.id,
+      bookingId: selectedBooking.bookingId,
+      date: typeof selectedBooking.date === 'string' ? selectedBooking.date : selectedBooking.date.toISOString(),
+      time: `${selectedBooking.startTime} - ${selectedBooking.endTime}`,
+      customerName: selectedBooking.user?.name || 'N/A',
+      customerPhone: selectedBooking.user?.phoneNumber || 'N/A',
+      courtName: selectedBooking.court?.name || 'N/A',
+      courtType: selectedBooking.court?.type || 'N/A',
+      duration: `${bookingsApi.getBookingDurationHours(selectedBooking.duration)} hour${bookingsApi.getBookingDurationHours(selectedBooking.duration) > 1 ? 's' : ''}`,
+      amount: selectedBooking.totalPrice,
+      status: selectedBooking.status.charAt(0) + selectedBooking.status.slice(1).toLowerCase() as "Confirmed" | "Pending" | "Cancelled" | "Completed",
+      paymentStatus: selectedBooking.paymentStatus.charAt(0) + selectedBooking.paymentStatus.slice(1).toLowerCase() as "Paid" | "Unpaid" | "Partial",
+    };
+  }, [selectedBooking])
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((term: string) => {
+      const filtered = bookings.filter(
+        (booking) =>
+          booking.user?.name.toLowerCase().includes(term.toLowerCase()) ||
+          booking.user?.phoneNumber.includes(term) ||
+          booking.bookingId.toLowerCase().includes(term.toLowerCase()) ||
+          booking.court?.name.toLowerCase().includes(term.toLowerCase()),
+      )
+      setFilteredBookings(filtered)
+      setCurrentPage(1)
+    }, 300),
+    [bookings],
+  )
+
+  // All useEffect hooks
   // Load bookings and courts on component mount
   useEffect(() => {
     const loadData = async () => {
@@ -80,22 +126,6 @@ export function BookingsContent() {
 
     loadData()
   }, [])
-
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((term: string) => {
-      const filtered = bookings.filter(
-        (booking) =>
-          booking.user?.name.toLowerCase().includes(term.toLowerCase()) ||
-          booking.user?.phoneNumber.includes(term) ||
-          booking.bookingId.toLowerCase().includes(term.toLowerCase()) ||
-          booking.court?.name.toLowerCase().includes(term.toLowerCase()),
-      )
-      setFilteredBookings(filtered)
-      setCurrentPage(1)
-    }, 300),
-    [bookings],
-  )
 
   // Apply filters
   useEffect(() => {
@@ -193,6 +223,18 @@ export function BookingsContent() {
     }
   }
 
+  // After modal is fully closed, clear selectedBooking and ensure proper focus management
+  useEffect(() => {
+    if (!isDetailsModalOpen && selectedBooking) {
+      const timeout = setTimeout(() => {
+        setSelectedBooking(null)
+        // Clear any dropdown states when modal closes to prevent focus conflicts
+        setOpenDropdowns({})
+      }, 200) // match Dialog close animation duration
+      return () => clearTimeout(timeout)
+    }
+  }, [isDetailsModalOpen, selectedBooking])
+
   const handleStatusChange = async (bookingId: string, newStatus: bookingsApi.Booking["status"]) => {
     try {
       await bookingsApi.updateBookingStatus(bookingId, newStatus)
@@ -260,25 +302,6 @@ export function BookingsContent() {
     return <BookingsSkeleton />
   }
 
-  // Map booking to flat structure for BookingDetailsModal
-  const mapBookingForModal = (booking: bookingsApi.Booking | null) => {
-    if (!booking) return null;
-    return {
-      id: booking.id,
-      bookingId: booking.bookingId,
-      date: typeof booking.date === 'string' ? booking.date : booking.date.toISOString(),
-      time: `${booking.startTime} - ${booking.endTime}`,
-      customerName: booking.user?.name || 'N/A',
-      customerPhone: booking.user?.phoneNumber || 'N/A',
-      courtName: booking.court?.name || 'N/A',
-      courtType: booking.court?.type || 'N/A',
-      duration: `${bookingsApi.getBookingDurationHours(booking.duration)} hour${bookingsApi.getBookingDurationHours(booking.duration) > 1 ? 's' : ''}`,
-      amount: booking.totalPrice,
-      status: booking.status.charAt(0) + booking.status.slice(1).toLowerCase() as "Confirmed" | "Pending" | "Cancelled" | "Completed",
-      paymentStatus: booking.paymentStatus.charAt(0) + booking.paymentStatus.slice(1).toLowerCase() as "Paid" | "Unpaid" | "Partial",
-    };
-  };
-
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6 pb-20 md:pb-6">
       {/* Header */}
@@ -296,7 +319,11 @@ export function BookingsContent() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 min-h-[44px]">
+          <Button 
+            onClick={() => setIsModalOpen(true)} 
+            className="bg-blue-600 hover:bg-blue-700 min-h-[44px]"
+            data-add-booking-button
+          >
             <Plus className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Add New Booking</span>
             <span className="sm:hidden">Add</span>
@@ -550,29 +577,77 @@ export function BookingsContent() {
                       </TableCell>
                       <TableCell>{getStatusBadge(booking.status)}</TableCell>
                       <TableCell>
-                        <DropdownMenu>
+                        <DropdownMenu 
+                          modal={false}
+                          open={openDropdowns[booking.id] || false}
+                          onOpenChange={(open) => handleDropdownOpenChange(booking.id, open)}
+                        >
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0"
+                              aria-label={`More actions for booking ${booking.bookingId}`}
+                              onFocus={() => {
+                                // Ensure any conflicting aria-hidden elements don't interfere
+                                if (openDropdowns[booking.id]) {
+                                  setOpenDropdowns(prev => ({
+                                    ...prev,
+                                    [booking.id]: false
+                                  }))
+                                }
+                              }}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent 
+                            align="end" 
+                            side="bottom" 
+                            avoidCollisions
+                            onCloseAutoFocus={(event) => {
+                              // Prevent default and handle focus manually to avoid aria-hidden conflicts
+                              event.preventDefault()
+                              safeFocus(
+                                document.querySelector(`[aria-label="More actions for booking ${booking.bookingId}"]`) as HTMLElement,
+                                50
+                              )
+                            }}
+                          >
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedBooking(booking)
                                 setIsDetailsModalOpen(true)
+                                setOpenDropdowns(prev => ({
+                                  ...prev,
+                                  [booking.id]: false
+                                }))
                               }}
                             >
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
                             {booking.status === "PENDING" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(booking.id, "CONFIRMED")}>
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  handleStatusChange(booking.id, "CONFIRMED")
+                                  setOpenDropdowns(prev => ({
+                                    ...prev,
+                                    [booking.id]: false
+                                  }))
+                                }}
+                              >
                                 <Check className="mr-2 h-4 w-4" />
                                 Confirm Booking
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setOpenDropdowns(prev => ({
+                                  ...prev,
+                                  [booking.id]: false
+                                }))
+                              }}
+                            >
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Booking
                             </DropdownMenuItem>
@@ -624,7 +699,14 @@ export function BookingsContent() {
       {/* Modals */}
       <AddBookingModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false)
+          // Return focus to the add booking button after modal closes
+          safeFocus(
+            document.querySelector('[data-add-booking-button]') as HTMLElement,
+            100
+          )
+        }}
         onSuccess={(newBooking) => {
           setBookings([newBooking, ...bookings])
           setIsModalOpen(false)
@@ -633,9 +715,11 @@ export function BookingsContent() {
       />
 
       <BookingDetailsModal
-        booking={mapBookingForModal(selectedBooking)}
+        booking={mappedBooking}
         isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
+        onClose={() => {
+          setIsDetailsModalOpen(false)
+        }}
         onStatusChange={async (bookingId: string, newStatus: "Confirmed" | "Pending" | "Cancelled" | "Completed") => {
           const apiStatus = newStatus.toUpperCase() as bookingsApi.Booking["status"]
           await handleStatusChange(bookingId, apiStatus)
