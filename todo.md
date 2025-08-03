@@ -15,4 +15,5 @@ Occupied available implementation
 images
 whatsapp
 implement/remove export in bookings
+whatsapp notifications for bookings updates
 
