@@ -241,11 +241,16 @@ export class BookingsService {
 
     // If updating time slot, check for conflicts
     if (updateBookingDto.startTime || updateBookingDto.endTime || updateBookingDto.date) {
+      // Convert date string to Date object if it's a string
+      const dateForComparison = updateBookingDto.date 
+        ? (typeof updateBookingDto.date === 'string' ? new Date(updateBookingDto.date) : updateBookingDto.date)
+        : existingBooking.date;
+
       const conflictingBooking = await this.prisma.booking.findFirst({
         where: {
           id: { not: id },
           courtId: updateBookingDto.courtId || existingBooking.courtId,
-          date: updateBookingDto.date || existingBooking.date,
+          date: dateForComparison,
           status: {
             not: BookingStatus.CANCELLED,
           },
@@ -278,9 +283,18 @@ export class BookingsService {
     }
 
     try {
+      // Convert date string to Date object if needed before saving
+      const dataToUpdate = {
+        ...updateBookingDto,
+        ...(updateBookingDto.date && typeof updateBookingDto.date === 'string' 
+          ? { date: new Date(updateBookingDto.date) } 
+          : {}
+        )
+      };
+
       return await this.prisma.booking.update({
         where: { id },
-        data: updateBookingDto,
+        data: dataToUpdate,
         include: {
           user: {
             select: {

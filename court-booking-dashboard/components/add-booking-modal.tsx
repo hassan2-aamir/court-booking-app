@@ -30,6 +30,10 @@ import * as bookingsApi from "@/lib/api/bookings"
 import * as usersApi from "@/lib/api/users"
 import * as courtsApi from "@/lib/api/courts"
 
+// Type aliases for clarity
+type BookingUser = bookingsApi.User
+type FullUser = usersApi.User
+
 interface TimeSlot {
   id: string
   startTime: string
@@ -43,6 +47,7 @@ interface AddBookingModalProps {
   onClose: () => void
   onSuccess: (booking: bookingsApi.Booking) => void
   courts: courtsApi.Court[]
+  booking?: bookingsApi.Booking // Optional booking for edit mode
 }
 
 interface BookingFormData {
@@ -70,12 +75,13 @@ const steps = [
   { id: 5, title: "Confirmation", icon: CheckCircle },
 ]
 
-export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBookingModalProps) {
+export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }: AddBookingModalProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<usersApi.User[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<usersApi.User | null>(null)
+  const [searchResults, setSearchResults] = useState<FullUser[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<FullUser | null>(null)
   const [selectedCourt, setSelectedCourt] = useState<courtsApi.Court | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
@@ -106,6 +112,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
   useEffect(() => {
     if (!isOpen) {
       setCurrentStep(1)
+      setIsEditMode(false)
       setSelectedCustomer(null)
       setSelectedCourt(null)
       setSelectedDate(undefined)
@@ -122,6 +129,10 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
         notes: "",
       })
     } else {
+      // Check if we're in edit mode
+      const editMode = !!booking
+      setIsEditMode(editMode)
+      
       // Debug: Check courts data when modal opens
       console.log('Courts passed to AddBookingModal:', courts)
       console.log('Number of courts:', courts?.length || 0)
@@ -134,6 +145,11 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
           .then((fetchedCourts) => {
             console.log('Fetched courts:', fetchedCourts)
             setLocalCourts(fetchedCourts as courtsApi.Court[])
+            
+            // If in edit mode and we have booking data, preload it after courts are loaded
+            if (editMode && booking) {
+              preloadBookingData(booking, fetchedCourts as courtsApi.Court[])
+            }
           })
           .catch((error) => {
             console.error('Failed to fetch courts:', error)
@@ -141,9 +157,99 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
           .finally(() => {
             setCourtsLoading(false)
           })
+      } else {
+        // If courts are already available and we're in edit mode, preload data immediately
+        if (editMode && booking) {
+          preloadBookingData(booking, courts)
+        }
       }
     }
-  }, [isOpen, courts])
+  }, [isOpen, courts, booking])
+
+  // Function to preload booking data when in edit mode
+  const preloadBookingData = (bookingData: bookingsApi.Booking, availableCourts: courtsApi.Court[]) => {
+    try {
+      console.log('Preloading booking data:', bookingData)
+      
+      // Set customer data
+      if (bookingData.user) {
+        const customer = bookingData.user
+        // Convert booking User to usersApi User format by creating a compatible object
+        const compatibleCustomer: FullUser = {
+          id: customer.id,
+          name: customer.name,
+          phoneNumber: customer.phoneNumber,
+          email: customer.email,
+          cnic: customer.cnic,
+          address: customer.address,
+          role: 'CUSTOMER' as const,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        setSelectedCustomer(compatibleCustomer)
+        setFormData(prev => ({
+          ...prev,
+          customer: {
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phoneNumber,
+            email: customer.email || "",
+            cnic: customer.cnic || "",
+            address: customer.address || "",
+          }
+        }))
+      }
+
+      // Set court data
+      const court = availableCourts.find(c => c.id === bookingData.courtId)
+      if (court) {
+        setSelectedCourt(court)
+        setFormData(prev => ({ ...prev, courtId: court.id }))
+      }
+
+      // Set date
+      const bookingDate = typeof bookingData.date === 'string' 
+        ? new Date(bookingData.date) 
+        : bookingData.date
+      setSelectedDate(bookingDate)
+      setFormData(prev => ({ 
+        ...prev, 
+        date: bookingDate.toISOString().split('T')[0]
+      }))
+
+      // Set duration (convert from minutes to hours)
+      const durationHours = bookingsApi.getBookingDurationHours(bookingData.duration)
+      setDuration(durationHours)
+      setFormData(prev => ({ ...prev, duration: durationHours }))
+
+      // Set time slot
+      const timeSlot: TimeSlot = {
+        id: `edit-slot-${bookingData.id}`,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        price: bookingData.totalPrice / durationHours, // Calculate price per hour
+        status: "Available"
+      }
+      setSelectedSlot(timeSlot)
+      setFormData(prev => ({
+        ...prev,
+        startTime: bookingData.startTime
+      }))
+
+      // Set notes and payment method
+      setFormData(prev => ({
+        ...prev,
+        notes: bookingData.notes || "",
+        paymentMethod: bookingData.paymentStatus === 'PAID' ? 'Online' : 'Cash'
+      }))
+
+      console.log('Booking data preloaded successfully')
+    } catch (error) {
+      console.error('Error preloading booking data:', error)
+    }
+  }
 
   // Customer search
   const handleCustomerSearch = async (query: string) => {
@@ -281,59 +387,88 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
 
     setIsLoading(true)
     try {
-      // Create or get customer
-      let customerId = formData.customer.id
-      
-      if (!customerId) {
-        // Create new customer
-        const newCustomer = await usersApi.createUser({
-          name: formData.customer.name,
-          phoneNumber: formData.customer.phone,
-          email: formData.customer.email || undefined,
-          cnic: formData.customer.cnic || undefined,
-          address: formData.customer.address || undefined,
-          role: 'CUSTOMER'
-        })
-        customerId = newCustomer.id
+      if (isEditMode && booking) {
+        // Update existing booking
+        const bookingData: bookingsApi.UpdateBookingDto = {
+          userId: formData.customer.id || booking.userId,
+          courtId: selectedCourt.id,
+          date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          startTime: selectedSlot.startTime,
+          endTime: selectedSlot.endTime,
+          duration: duration * 60, // Convert to minutes
+          totalPrice: calculateTotal(),
+          notes: formData.notes || undefined,
+          status: booking.status, // Keep existing status
+          paymentStatus: formData.paymentMethod === 'Online' ? 'PAID' : booking.paymentStatus
+        }
+
+        console.log('Updating booking with data:', bookingData)
+        
+        // Remove undefined values to avoid issues
+        const cleanedBookingData = Object.fromEntries(
+          Object.entries(bookingData).filter(([_, value]) => value !== undefined)
+        ) as bookingsApi.UpdateBookingDto
+
+        console.log('Cleaned update booking data:', cleanedBookingData)
+        const updatedBooking = await bookingsApi.updateBooking(booking.id, cleanedBookingData)
+        setCreatedBooking(updatedBooking)
+        setCurrentStep(5)
+        onSuccess(updatedBooking)
+      } else {
+        // Create new booking (existing logic)
+        let customerId = formData.customer.id
+        
+        if (!customerId) {
+          // Create new customer
+          const newCustomer = await usersApi.createUser({
+            name: formData.customer.name,
+            phoneNumber: formData.customer.phone,
+            email: formData.customer.email || undefined,
+            cnic: formData.customer.cnic || undefined,
+            address: formData.customer.address || undefined,
+            role: 'CUSTOMER'
+          })
+          customerId = newCustomer.id
+        }
+
+        // Calculate duration in minutes
+        const durationMinutes = duration * 60
+
+        // Validate required data
+        if (!customerId || !selectedCourt.id || !selectedDate || !selectedSlot) {
+          throw new Error('Missing required booking information')
+        }
+
+        // Create booking
+        const bookingData: bookingsApi.CreateBookingDto = {
+          bookingId: bookingsApi.generateBookingId(),
+          userId: customerId,
+          courtId: selectedCourt.id,
+          date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          startTime: selectedSlot.startTime,
+          endTime: selectedSlot.endTime,
+          duration: durationMinutes,
+          totalPrice: calculateTotal(),
+          notes: formData.notes || undefined,
+          status: 'PENDING',
+          paymentStatus: 'PENDING'
+        }
+
+        console.log('Booking data being sent:', bookingData)
+        
+        // Remove undefined values to avoid issues
+        const cleanedBookingData = Object.fromEntries(
+          Object.entries(bookingData).filter(([_, value]) => value !== undefined)
+        ) as bookingsApi.CreateBookingDto
+
+        console.log('Cleaned booking data:', cleanedBookingData)
+        const newBooking = await bookingsApi.createBooking(cleanedBookingData)
+        setCreatedBooking(newBooking)
+        setCurrentStep(5)
+        onSuccess(newBooking)
       }
-
-      // Calculate duration in minutes
-      const durationMinutes = duration * 60
-
-      // Validate required data
-      if (!customerId || !selectedCourt.id || !selectedDate || !selectedSlot) {
-        throw new Error('Missing required booking information')
-      }
-
-      // Create booking
-      const bookingData: bookingsApi.CreateBookingDto = {
-        bookingId: bookingsApi.generateBookingId(),
-        userId: customerId,
-        courtId: selectedCourt.id,
-        date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-        duration: durationMinutes,
-        totalPrice: calculateTotal(),
-        notes: formData.notes || undefined,
-        status: 'PENDING',
-        paymentStatus: 'PENDING'
-      }
-
-      console.log('Booking data being sent:', bookingData)
-      
-      // Remove undefined values to avoid issues
-      const cleanedBookingData = Object.fromEntries(
-        Object.entries(bookingData).filter(([_, value]) => value !== undefined)
-      ) as bookingsApi.CreateBookingDto
-
-      console.log('Cleaned booking data:', cleanedBookingData)
-      const booking = await bookingsApi.createBooking(cleanedBookingData)
-      setCreatedBooking(booking)
-      setCurrentStep(5)
-      onSuccess(booking)
     } catch (error) {
-      console.error("Booking creation failed:", error)
+      console.error(`Booking ${isEditMode ? 'update' : 'creation'} failed:`, error)
     } finally {
       setIsLoading(false)
     }
@@ -737,8 +872,15 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
             </div>
 
             <div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Booking Confirmed!</h3>
-              <p className="text-gray-600 dark:text-gray-300">Your court booking has been successfully created.</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                {isEditMode ? 'Booking Updated!' : 'Booking Confirmed!'}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300">
+                {isEditMode 
+                  ? 'Your court booking has been successfully updated.' 
+                  : 'Your court booking has been successfully created.'
+                }
+              </p>
             </div>
 
             {createdBooking && (
@@ -779,19 +921,21 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
               <Button onClick={onClose} variant="outline" className="flex-1 bg-transparent">
                 Close
               </Button>
-              <Button
-                onClick={() => {
-                  setCurrentStep(1)
-                  setSelectedCustomer(null)
-                  setSelectedCourt(null)
-                  setSelectedDate(undefined)
-                  setSelectedSlot(null)
-                  setCreatedBooking(null)
-                }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
-                Create Another Booking
-              </Button>
+              {!isEditMode && (
+                <Button
+                  onClick={() => {
+                    setCurrentStep(1)
+                    setSelectedCustomer(null)
+                    setSelectedCourt(null)
+                    setSelectedDate(undefined)
+                    setSelectedSlot(null)
+                    setCreatedBooking(null)
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  Create Another Booking
+                </Button>
+              )}
             </div>
           </div>
         )
@@ -805,7 +949,9 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-white dark:bg-gray-800">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Create New Booking</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">
+            {isEditMode ? 'Edit Booking' : 'Create New Booking'}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Progress Indicator */}
@@ -864,7 +1010,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts }: AddBooki
                 ) : (
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
-                Confirm Booking
+                {isEditMode ? 'Update Booking' : 'Confirm Booking'}
               </Button>
             )}
           </div>

@@ -26,6 +26,8 @@ export function BookingsContent() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingBooking, setEditingBooking] = useState<bookingsApi.Booking | null>(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<bookingsApi.Booking | null>(null)
   const [selectedBookings, setSelectedBookings] = useState<string[]>([])
@@ -256,6 +258,12 @@ export function BookingsContent() {
         description: "Failed to update booking status",
       })
     }
+  }
+
+  const handleEditBooking = (booking: bookingsApi.Booking) => {
+    setEditingBooking(booking)
+    setIsEditMode(true)
+    setIsModalOpen(true)
   }
 
   const getStatusBadge = (status: string) => {
@@ -646,6 +654,7 @@ export function BookingsContent() {
                                   ...prev,
                                   [booking.id]: false
                                 }))
+                                handleEditBooking(booking)
                               }}
                             >
                               <Edit className="mr-2 h-4 w-4" />
@@ -701,17 +710,30 @@ export function BookingsContent() {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false)
+          setIsEditMode(false)
+          setEditingBooking(null)
           // Return focus to the add booking button after modal closes
           safeFocus(
             document.querySelector('[data-add-booking-button]') as HTMLElement,
             100
           )
         }}
-        onSuccess={(newBooking) => {
-          setBookings([newBooking, ...bookings])
+        onSuccess={(updatedBooking) => {
+          if (isEditMode) {
+            // Update existing booking in the list
+            setBookings(bookings.map(b => b.id === updatedBooking.id ? updatedBooking : b))
+            setFilteredBookings(filteredBookings.map(b => b.id === updatedBooking.id ? updatedBooking : b))
+          } else {
+            // Add new booking to the list
+            setBookings([updatedBooking, ...bookings])
+            setFilteredBookings([updatedBooking, ...filteredBookings])
+          }
           setIsModalOpen(false)
+          setIsEditMode(false)
+          setEditingBooking(null)
         }}
         courts={courts as any}
+        booking={editingBooking || undefined}
       />
 
       <BookingDetailsModal
