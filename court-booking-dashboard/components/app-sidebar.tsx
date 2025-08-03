@@ -3,7 +3,7 @@
 import type * as React from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -22,9 +22,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LayoutDashboard, Calendar, MapPin, Settings, User, LogOut, Sun, Moon, Monitor, ChevronUp } from "lucide-react"
+import { LayoutDashboard, Calendar, MapPin, Settings, User, LogOut, Sun, Moon, Monitor, ChevronUp, ChevronRight } from "lucide-react"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activePage?: string
@@ -153,13 +156,47 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  {getThemeIcon()}
-                  <span>{theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System"} Theme</span>
-                </DropdownMenuItem>
+                
+                {/* Theme Selection Submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="flex items-center gap-2">
+                    {getThemeIcon()}
+                    <span>Theme</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-40 bg-white dark:bg-gray-800">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setTheme("light")
+                      }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Sun className="h-4 w-4" />
+                      <span>Light</span>
+                      {theme === "light" && <div className="ml-auto h-2 w-2 rounded-full bg-blue-600" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setTheme("dark")
+                      }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Moon className="h-4 w-4" />
+                      <span>Dark</span>
+                      {theme === "dark" && <div className="ml-auto h-2 w-2 rounded-full bg-blue-600" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setTheme("system")
+                      }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Monitor className="h-4 w-4" />
+                      <span>System</span>
+                      {theme === "system" && <div className="ml-auto h-2 w-2 rounded-full bg-blue-600" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}

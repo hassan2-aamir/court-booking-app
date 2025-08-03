@@ -2,10 +2,10 @@ court operating times ✅
 delete court ✅
 implement schedule ✅
 bookings ✅
-light dark mode switch
-fix status filter
+light dark mode switch ✅
+fix status filter 
 fix search with filter set
-implement edit bookings
+implement edit bookings ✅
 redis for bookings fetch
 pagination proper
 settings related to court within court
