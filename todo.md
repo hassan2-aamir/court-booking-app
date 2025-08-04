@@ -3,9 +3,10 @@ delete court ✅
 implement schedule ✅
 bookings ✅
 light dark mode switch ✅
-fix status filter 
-fix search with filter set
+fix status filter ✅
+fix search with filter set ✅
 implement edit bookings ✅
+implement already booked can't be booked twice ✅
 redis for bookings fetch
 pagination proper
 settings related to court within court
