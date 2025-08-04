@@ -32,6 +32,7 @@ export function BookingsContent() {
   const [selectedBooking, setSelectedBooking] = useState<bookingsApi.Booking | null>(null)
   const [selectedBookings, setSelectedBookings] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [courtFilter, setCourtFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
@@ -69,23 +70,17 @@ export function BookingsContent() {
     };
   }, [selectedBooking])
 
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((term: string) => {
-      const filtered = bookings.filter(
-        (booking) =>
-          booking.user?.name.toLowerCase().includes(term.toLowerCase()) ||
-          booking.user?.phoneNumber.includes(term) ||
-          booking.bookingId.toLowerCase().includes(term.toLowerCase()) ||
-          booking.court?.name.toLowerCase().includes(term.toLowerCase()),
-      )
-      setFilteredBookings(filtered)
-      setCurrentPage(1)
-    }, 300),
-    [bookings],
-  )
-
   // All useEffect hooks
+  // Debounce search term
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+    return () => {
+      clearTimeout(timerId)
+    }
+  }, [searchTerm])
+
   // Load bookings and courts on component mount
   useEffect(() => {
     const loadData = async () => {
@@ -134,19 +129,19 @@ export function BookingsContent() {
     let filtered = [...bookings]
 
     // Apply search
-    if (searchTerm) {
+    if (debouncedSearchTerm) {
       filtered = filtered.filter(
         (booking) =>
-          booking.user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          booking.user?.phoneNumber.includes(searchTerm) ||
-          booking.bookingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          booking.court?.name.toLowerCase().includes(searchTerm.toLowerCase()),
+          booking.user?.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          booking.user?.phoneNumber.includes(debouncedSearchTerm) ||
+          booking.bookingId.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          booking.court?.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
       )
     }
 
     // Apply status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((booking) => booking.status.toLowerCase() === statusFilter.toUpperCase())
+      filtered = filtered.filter((booking) => booking.status.toUpperCase() === statusFilter.toUpperCase())
     }
 
     // Apply court filter
@@ -156,20 +151,14 @@ export function BookingsContent() {
 
     setFilteredBookings(filtered)
     setCurrentPage(1)
-  }, [bookings, searchTerm, statusFilter, courtFilter])
+  }, [bookings, debouncedSearchTerm, statusFilter, courtFilter])
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
-    if (!value) {
-      setFilteredBookings(bookings)
-    } else {
-      debouncedSearch(value)
-    }
   }
 
   const clearSearch = () => {
     setSearchTerm("")
-    setFilteredBookings(bookings)
   }
 
   const handleRefresh = async () => {
