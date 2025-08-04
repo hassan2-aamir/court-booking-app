@@ -91,6 +91,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
   const [courtTypeFilter, setCourtTypeFilter] = useState("all")
   const [localCourts, setLocalCourts] = useState<courtsApi.Court[]>([])
   const [courtsLoading, setCourtsLoading] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   const [formData, setFormData] = useState<BookingFormData>({
     customer: {
@@ -119,6 +120,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       setSelectedSlot(null)
       setCreatedBooking(null)
       setCourtTypeFilter("all")
+      setTermsAccepted(false)
       setFormData({
         customer: { name: "", phone: "", email: "", cnic: "", address: "" },
         courtId: "",
@@ -299,61 +301,93 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
     }
   }
 
-  // Generate available time slots based on court availability
-  const generateTimeSlots = (court: courtsApi.Court, date: Date): TimeSlot[] => {
+  // Generate available time slots based on court availability and existing bookings
+  const generateTimeSlots = async (court: courtsApi.Court, date: Date): Promise<TimeSlot[]> => {
     const slots: TimeSlot[] = []
-    const dateDay = date.getDay() // 0 = Sunday, 1 = Monday, etc.
     
-    // Find availability for the selected day
-    const dayAvailability = court.availability?.find(av => av.dayOfWeek === dateDay)
-    
-    if (!dayAvailability || !dayAvailability.startTime || !dayAvailability.endTime) {
-      return slots
-    }
-
-    const startTime = dayAvailability.startTime
-    const endTime = dayAvailability.endTime
-    const slotDuration = court.slotDuration || 60 // minutes
-    
-    // Parse start and end times
-    const [startHour, startMinute] = startTime.split(':').map(Number)
-    const [endHour, endMinute] = endTime.split(':').map(Number)
-    
-    let currentHour = startHour
-    let currentMinute = startMinute
-    let slotId = 1
-    
-    while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
-      const nextHour = currentHour + Math.floor((currentMinute + slotDuration) / 60)
-      const nextMinute = (currentMinute + slotDuration) % 60
+    try {
+      // Format date as YYYY-MM-DD for the API
+      const dateStr = date.toISOString().split('T')[0]
       
-      if (nextHour < endHour || (nextHour === endHour && nextMinute <= endMinute)) {
-        const slotStart = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
-        const slotEnd = `${nextHour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
-        
+      // Fetch available slots from backend
+      const availableSlots = await courtsApi.getAvailableSlots(court.id, dateStr)
+      
+      // Convert backend slots to frontend TimeSlot format
+      availableSlots.forEach((slot, index) => {
         slots.push({
-          id: `slot-${slotId}`,
-          startTime: slotStart,
-          endTime: slotEnd,
+          id: `slot-${index + 1}`,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
           price: court.pricePerHour,
-          status: "Available"
+          status: slot.isAvailable ? "Available" : "Booked"
         })
+      })
+      
+      return slots
+    } catch (error) {
+      console.error('Failed to fetch available slots:', error)
+      
+      // Fallback to generating slots without booking info
+      const dateDay = date.getDay()
+      const dayAvailability = court.availability?.find(av => av.dayOfWeek === dateDay)
+      
+      if (!dayAvailability || !dayAvailability.startTime || !dayAvailability.endTime) {
+        return slots
+      }
+
+      const startTime = dayAvailability.startTime
+      const endTime = dayAvailability.endTime
+      const slotDuration = court.slotDuration || 60
+      
+      const [startHour, startMinute] = startTime.split(':').map(Number)
+      const [endHour, endMinute] = endTime.split(':').map(Number)
+      
+      let currentHour = startHour
+      let currentMinute = startMinute
+      let slotId = 1
+      
+      while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
+        const nextHour = currentHour + Math.floor((currentMinute + slotDuration) / 60)
+        const nextMinute = (currentMinute + slotDuration) % 60
         
-        slotId++
+        if (nextHour < endHour || (nextHour === endHour && nextMinute <= endMinute)) {
+          const slotStart = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
+          const slotEnd = `${nextHour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
+          
+          slots.push({
+            id: `slot-${slotId}`,
+            startTime: slotStart,
+            endTime: slotEnd,
+            price: court.pricePerHour,
+            status: "Available"
+          })
+          
+          slotId++
+        }
+        
+        currentHour = nextHour
+        currentMinute = nextMinute
       }
       
-      currentHour = nextHour
-      currentMinute = nextMinute
+      return slots
     }
-    
-    return slots
   }
 
   // Load available time slots when court and date are selected
   useEffect(() => {
     if (selectedCourt && selectedDate) {
-      const slots = generateTimeSlots(selectedCourt, selectedDate)
-      setAvailableSlots(slots)
+      setIsLoading(true)
+      generateTimeSlots(selectedCourt, selectedDate)
+        .then(slots => {
+          setAvailableSlots(slots)
+        })
+        .catch(error => {
+          console.error('Error loading time slots:', error)
+          setAvailableSlots([])
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
     }
   }, [selectedCourt, selectedDate])
 
@@ -365,8 +399,8 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         return selectedCourt !== null
       case 3:
         return selectedDate !== undefined && selectedSlot !== null
-      //case 4:
-      //  return formData.paymentMethod !== ""
+      case 4:
+        return formData.paymentMethod !== "" && termsAccepted
       default:
         return true
     }
@@ -752,15 +786,20 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                               ? selectedSlot?.id === slot.id
                                 ? "bg-blue-600 text-white"
                                 : "hover:bg-blue-50 bg-transparent"
-                              : "opacity-50 cursor-not-allowed bg-transparent"
+                              : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
                           }`}
                           disabled={slot.status !== "Available"}
-                          onClick={() => setSelectedSlot(slot)}
+                          onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
                         >
                           <div className="font-medium">
                             {slot.startTime} - {slot.endTime}
                           </div>
-                          <div className="text-sm">PKR {(slot.price * duration).toLocaleString()}</div>
+                          <div className="text-sm">
+                            {slot.status === "Available"
+                              ? `PKR ${(slot.price * duration).toLocaleString()}`
+                              : "Booked"
+                            }
+                          </div>
                         </Button>
                       ))
                     )}
@@ -855,7 +894,11 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
               </div>
 
               <div className="flex items-center space-x-2">
-                <Checkbox id="terms" required />
+                <Checkbox
+                  id="terms"
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(Boolean(checked))}
+                />
                 <Label htmlFor="terms" className="text-sm">
                   I agree to the terms and conditions and cancellation policy
                 </Label>

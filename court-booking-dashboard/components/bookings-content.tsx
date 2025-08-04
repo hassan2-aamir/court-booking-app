@@ -720,6 +720,13 @@ export function BookingsContent() {
           setIsModalOpen(false)
           setIsEditMode(false)
           setEditingBooking(null)
+          addToast({
+            type: "success",
+            title: isEditMode ? "Booking updated" : "Booking created",
+            description: isEditMode
+              ? "Booking updated successfully"
+              : "Booking created successfully",
+          })
         }}
         courts={courts as any}
         booking={editingBooking || undefined}

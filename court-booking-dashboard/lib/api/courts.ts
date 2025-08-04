@@ -111,3 +111,13 @@ export async function getAvailabilityToday(id:string): Promise<CourtAvailability
   return res.json();
 }
 
+export async function getAvailableSlots(courtId: string, date: string): Promise<{ startTime: string; endTime: string; isAvailable: boolean }[]> {
+  const res = await fetch(`${API_BASE}/${courtId}/available-slots/${date}`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+  });
+  if (!res.ok) throw new Error("Failed to fetch available slots");
+  return res.json();
+}
+
