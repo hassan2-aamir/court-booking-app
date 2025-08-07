@@ -36,8 +36,6 @@ model Court {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  maxBookingsPerUserPerDay Int @default(2)
-  slotDuration Int @default(60)
   advancedBookingLimit Int @default(30) // in days
 
   bookings       Booking[]

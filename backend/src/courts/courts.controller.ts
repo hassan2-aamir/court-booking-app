@@ -31,6 +31,11 @@ export class CourtsController {
     return this.courtsService.getAvailableSlots(id, date);
   }
 
+  @Get(':id/settings')
+  getSetting(@Param('id') id: string) {
+    return this.courtsService.getSetting(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.courtsService.findOne(id);

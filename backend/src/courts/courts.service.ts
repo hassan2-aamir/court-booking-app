@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { CourtAvailabilityDto, CreateCourtDto } from './dto/create-court.dto';
+import { CourtAvailabilityDto, CreateCourtDto, CourtUnavailabilityDto, PeakScheduleDto } from './dto/create-court.dto';
 import { UpdateCourtDto } from './dto/update-court.dto';
+import { SettingDto } from './dto/setting.dto';
 import { PrismaService } from '../database/prisma.service';
 import { Court, CourtAvailability, BookingStatus } from '@prisma/client';
 import { CourtResponseDto } from './dto/court-response.dto';
@@ -12,13 +13,24 @@ export class CourtsService {
   create(createCourtDto: CreateCourtDto) {
     // Assuming you have injected PrismaService and your model is named 'court'
     // Example: constructor(private prisma: PrismaService) {}
-    const { availability, ...courtData } = createCourtDto as any;
+    const { availability, unavailability, peakSchedules, ...courtData } = createCourtDto as any;
     return this.prisma.court.create({
       data: {
         ...courtData,
+        advancedBookingLimit: createCourtDto.advancedBookingLimit ?? 30,
         availability: availability
           ? {
               create: availability,
+            }
+          : undefined,
+        unavailability: unavailability
+          ? {
+              create: unavailability,
+            }
+          : undefined,
+        peakSchedules: peakSchedules
+          ? {
+              create: peakSchedules,
             }
           : undefined,
       },
@@ -74,7 +86,7 @@ export class CourtsService {
   }
 
   update(id: string, updateCourtDto: UpdateCourtDto) {
-    const { availability, ...courtData } = updateCourtDto as any;
+    const { availability, unavailability, peakSchedules, ...courtData } = updateCourtDto as any;
     
     return this.prisma.court.update({
       where: { id },
@@ -85,6 +97,20 @@ export class CourtsService {
               // Delete existing availability and create new ones
               deleteMany: {},
               create: availability,
+            }
+          : undefined,
+        unavailability: unavailability
+          ? {
+              // Delete existing unavailability and create new ones
+              deleteMany: {},
+              create: unavailability,
+            }
+          : undefined,
+        peakSchedules: peakSchedules
+          ? {
+              // Delete existing peak schedules and create new ones
+              deleteMany: {},
+              create: peakSchedules,
             }
           : undefined,
       },
@@ -203,4 +229,37 @@ export class CourtsService {
     
     return slots;
   }
+
+  async getSetting(courtId: string): Promise<SettingDto | null> {
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+      include: {
+        unavailability: true,
+        peakSchedules: true,
+      },
+    }) as any;
+
+    if (!court) {
+      return null;
+    }
+
+    return {
+      courtId: court.id,
+      advancedBookingLimit: court.advancedBookingLimit,
+      unavailability: court.unavailability?.map((unavail: any) => ({
+        startTime: unavail.startTime,
+        endTime: unavail.endTime,
+        date: unavail.date instanceof Date ? unavail.date.toISOString() : unavail.date,
+        reason: unavail.reason,
+        isRecurring: unavail.isRecurring,
+      })) || [],
+      peakSchedules: court.peakSchedules?.map((peak: any) => ({
+        startTime: peak.startTime,
+        endTime: peak.endTime,
+        dayOfWeek: peak.dayOfWeek,
+        price: peak.price,
+      })) || [],
+    };
+  }
+
 }
