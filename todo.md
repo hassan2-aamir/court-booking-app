@@ -7,8 +7,8 @@ fix status filter ✅
 fix search with filter set ✅
 implement edit bookings ✅
 implement already booked can't be booked twice ✅
+add max bookings per day to setting instaed of avialability
 settings related to court within court 
-
 
 unavailability
 Number of bookings in court

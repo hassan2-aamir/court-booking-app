@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AddEditCourtModal } from "@/components/add-edit-court-modal"
 import { CourtScheduleModal } from "@/components/court-schedule-modal"
+import { CourtContextMenu } from "@/components/court-context-menu"
+import { CourtSettingsModal } from "@/components/court-settings-modal"
 import {
   getCourts,
   createCourt,
@@ -13,7 +15,8 @@ import {
   getAvailabilityToday,
   UpdateCourtDto,
   deleteCourt,
-  Court
+  Court,
+  CourtSettings
 } from "../lib/api/courts"
 import {
   Plus,
@@ -41,8 +44,13 @@ export function CourtsContent() {
   const [editingCourt, setEditingCourt] = useState<Court | null>(null)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [settingsCourt, setSettingsCourt] = useState<Court | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Add state for managing context menu open states to prevent focus conflicts
+  const [openContextMenus, setOpenContextMenus] = useState<Record<string, boolean>>({})
 
 useEffect(() => {
   setLoading(true)
@@ -102,6 +110,16 @@ useEffect(() => {
     })
 }, [])
 
+  // Clean up context menu states when modals close to prevent focus conflicts
+  useEffect(() => {
+    if (!isSettingsModalOpen && !isModalOpen && !isScheduleModalOpen) {
+      const timeout = setTimeout(() => {
+        setOpenContextMenus({})
+      }, 200) // match Dialog close animation duration
+      return () => clearTimeout(timeout)
+    }
+  }, [isSettingsModalOpen, isModalOpen, isScheduleModalOpen])
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "Active":
@@ -151,13 +169,30 @@ useEffect(() => {
   }
 
   const handleEditCourt = (court: Court) => {
+    // Close any open context menus before opening modal
+    setOpenContextMenus({})
     setEditingCourt(court)
     setIsModalOpen(true)
   }
 
   const handleViewSchedule = (court: Court) => {
+    // Close any open context menus before opening modal
+    setOpenContextMenus({})
     setSelectedCourt(court)
     setIsScheduleModalOpen(true)
+  }
+
+  const handleSettingsClick = (court: Court) => {
+    // Close any open context menus before opening modal
+    setOpenContextMenus({})
+    setSettingsCourt(court)
+    setIsSettingsModalOpen(true)
+  }
+
+  const handleSettingsUpdate = (courtId: string, settings: CourtSettings) => {
+    // Update the court in the local state if needed
+    // For now, we'll just log the update
+    console.log("Settings updated for court:", courtId, settings)
   }
 
 
@@ -225,7 +260,7 @@ useEffect(() => {
     };
   };
 
-const handleSaveCourt = (savedCourt: Court) => {
+  const handleSaveCourt = (savedCourt: Court) => {
   console.log('SavedCourt from modal:', savedCourt);
   
   const dayNumberToName = [
@@ -302,10 +337,24 @@ const handleSaveCourt = (savedCourt: Court) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {courts.map((court) => (
-            <Card
+            <CourtContextMenu
               key={court.id}
-              className="hover:shadow-lg transition-shadow duration-200 overflow-hidden dark:bg-gray-800 dark:hover:shadow-none"
+              court={court}
+              onSettingsClick={handleSettingsClick}
+              onEditClick={handleEditCourt}
+              onScheduleClick={handleViewSchedule}
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDeleteCourt}
+              open={openContextMenus[court.id] || false}
+              onOpenChange={(open) => setOpenContextMenus(prev => ({
+                ...prev,
+                [court.id]: open
+              }))}
             >
+              <Card 
+                className="hover:shadow-lg transition-shadow duration-200 overflow-hidden dark:bg-gray-800 dark:hover:shadow-none cursor-pointer"
+                data-court-id={court.id}
+              >
               <div className="relative">
                 <img
                   src={court.image || "/placeholder.svg"}
@@ -397,7 +446,8 @@ const handleSaveCourt = (savedCourt: Court) => {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            </CourtContextMenu>
           ))}
         </div>
       )}
@@ -415,6 +465,14 @@ const handleSaveCourt = (savedCourt: Court) => {
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
         court={selectedCourt}
+      />
+
+      {/* Court Settings Modal */}
+      <CourtSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        court={settingsCourt}
+        onSettingsUpdate={handleSettingsUpdate}
       />
     </div>
   )

@@ -1,0 +1,429 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { 
+  Settings, 
+  Calendar, 
+  DollarSign, 
+  Clock, 
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  AlertCircle,
+  CheckCircle
+} from "lucide-react"
+import { 
+  Court, 
+  CourtSettings, 
+  CourtUnavailability, 
+  PeakSchedule,
+  getCourtSettings,
+  updateAdvancedBookingLimit
+} from "../lib/api/courts"
+import { useToast } from "@/components/toast-provider"
+import { safeFocus } from "@/lib/focus-utils"
+
+interface CourtSettingsModalProps {
+  isOpen: boolean
+  onClose: () => void
+  court: Court | null
+  onSettingsUpdate?: (courtId: string, settings: CourtSettings) => void
+}
+
+export function CourtSettingsModal({ 
+  isOpen, 
+  onClose, 
+  court, 
+  onSettingsUpdate 
+}: CourtSettingsModalProps) {
+  const [settings, setSettings] = useState<CourtSettings | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("booking-limit")
+  const { addToast } = useToast()
+
+  // Form states for different sections
+  const [bookingLimitForm, setBookingLimitForm] = useState({
+    advancedBookingLimit: 30
+  })
+
+  // Load settings when modal opens
+  useEffect(() => {
+    if (isOpen && court) {
+      loadCourtSettings()
+    }
+  }, [isOpen, court])
+
+  // Reset form when settings change
+  useEffect(() => {
+    if (settings) {
+      setBookingLimitForm({
+        advancedBookingLimit: settings.advancedBookingLimit
+      })
+    }
+  }, [settings])
+
+  // Clean up when modal closes to prevent focus conflicts
+  useEffect(() => {
+    if (!isOpen) {
+      const timeout = setTimeout(() => {
+        setSettings(null)
+        setError(null)
+        setActiveTab("booking-limit")
+      }, 200) // match Dialog close animation duration
+      return () => clearTimeout(timeout)
+    }
+  }, [isOpen])
+
+  const loadCourtSettings = async () => {
+    if (!court) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const courtSettings = await getCourtSettings(court.id)
+      setSettings(courtSettings)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load court settings"
+      setError(errorMessage)
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveBookingLimit = async () => {
+    if (!court) return
+    
+    setSaving(true)
+    try {
+      await updateAdvancedBookingLimit(court.id, bookingLimitForm.advancedBookingLimit)
+      
+      // Update local settings state
+      if (settings) {
+        const updatedSettings = {
+          ...settings,
+          advancedBookingLimit: bookingLimitForm.advancedBookingLimit
+        }
+        setSettings(updatedSettings)
+        onSettingsUpdate?.(court.id, updatedSettings)
+      }
+      
+      addToast({
+        type: "success",
+        title: "Success",
+        description: "Advanced booking limit updated successfully",
+      })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to update booking limit"
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleClose = () => {
+    setSettings(null)
+    setError(null)
+    setActiveTab("booking-limit")
+    onClose()
+  }
+
+  const getDayName = (dayOfWeek: number): string => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    return days[dayOfWeek] || "Unknown"
+  }
+
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString()
+  }
+
+  const formatTime = (timeString: string): string => {
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })
+  }
+
+  if (!court) return null
+
+  return (
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={handleClose}
+      modal={true}
+    >
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] bg-white dark:bg-gray-800"
+        onCloseAutoFocus={(event) => {
+          // Prevent default and handle focus manually to avoid aria-hidden conflicts
+          event.preventDefault()
+          // Return focus to the court card after modal closes
+          safeFocus(
+            document.querySelector(`[data-court-id="${court?.id}"]`) as HTMLElement,
+            100
+          )
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Settings className="h-6 w-6" />
+            Court Settings - {court.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500 dark:text-gray-400">Loading settings...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+              <Button onClick={loadCourtSettings} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="booking-limit" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Booking Limit
+              </TabsTrigger>
+              <TabsTrigger value="unavailabilities" className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Unavailabilities
+              </TabsTrigger>
+              <TabsTrigger value="peak-schedules" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Peak Pricing
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Advanced Booking Limit Tab */}
+            <TabsContent value="booking-limit" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Advanced Booking Limit
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Set how many days in advance customers can book this court.
+                  </p>
+                  
+                  <div className="flex items-end gap-4">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="bookingLimit">Days in advance</Label>
+                      <Input
+                        id="bookingLimit"
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={bookingLimitForm.advancedBookingLimit}
+                        onChange={(e) => setBookingLimitForm({
+                          ...bookingLimitForm,
+                          advancedBookingLimit: Number(e.target.value)
+                        })}
+                        placeholder="30"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleSaveBookingLimit}
+                      disabled={saving}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {saving ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {settings && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-4 w-4" />
+                      Current limit: {settings.advancedBookingLimit} days
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Court Unavailabilities Tab */}
+            <TabsContent value="unavailabilities" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5" />
+                      Court Unavailabilities
+                    </div>
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Unavailability
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {settings?.unavailabilities && settings.unavailabilities.length > 0 ? (
+                    <ScrollArea className="h-64">
+                      <div className="space-y-3">
+                        {settings.unavailabilities.map((unavailability) => (
+                          <div
+                            key={unavailability.id}
+                            className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-700"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline">
+                                  {formatDate(unavailability.date)}
+                                </Badge>
+                                {unavailability.isRecurring && (
+                                  <Badge variant="secondary">Recurring</Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {unavailability.startTime && unavailability.endTime ? (
+                                  <>
+                                    {formatTime(unavailability.startTime)} - {formatTime(unavailability.endTime)}
+                                  </>
+                                ) : (
+                                  "All day"
+                                )}
+                                {unavailability.reason && (
+                                  <span className="ml-2">• {unavailability.reason}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No unavailabilities set for this court</p>
+                      <p className="text-sm">Click "Add Unavailability" to block specific dates or times</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Peak Schedules Tab */}
+            <TabsContent value="peak-schedules" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Peak Pricing Schedules
+                    </div>
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Peak Schedule
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {settings?.peakSchedules && settings.peakSchedules.length > 0 ? (
+                    <ScrollArea className="h-64">
+                      <div className="space-y-3">
+                        {settings.peakSchedules.map((schedule) => (
+                          <div
+                            key={schedule.id}
+                            className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-700"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline">
+                                  {getDayName(schedule.dayOfWeek)}
+                                </Badge>
+                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                  PKR {schedule.price.toLocaleString()}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No peak pricing schedules set for this court</p>
+                      <p className="text-sm">Click "Add Peak Schedule" to set higher prices for busy periods</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        <Separator />
+        
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={handleClose} className="bg-transparent">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

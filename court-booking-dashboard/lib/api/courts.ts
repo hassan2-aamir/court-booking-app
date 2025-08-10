@@ -10,6 +10,56 @@ export interface Court extends CourtResponseDto {
   slotDuration?: number;
   maxBookingsPerUserPerDay?: number;
 }
+
+// Court Settings Types
+export interface CourtSettings {
+  advancedBookingLimit: number;
+  unavailabilities: CourtUnavailability[];
+  peakSchedules: PeakSchedule[];
+}
+
+export interface CourtUnavailability {
+  id: string;
+  courtId: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+  isRecurring: boolean;
+}
+
+export interface PeakSchedule {
+  id: string;
+  courtId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  price: number;
+}
+
+// DTOs for creating/updating settings
+export interface CreateCourtUnavailabilityDto {
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+  isRecurring?: boolean;
+}
+
+export interface UpdateCourtUnavailabilityDto extends Partial<CreateCourtUnavailabilityDto> {}
+
+export interface CreateCourtPeakScheduleDto {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  price: number;
+}
+
+export interface UpdateCourtPeakScheduleDto extends Partial<CreateCourtPeakScheduleDto> {}
+
+export interface UpdateAdvancedBookingLimitDto {
+  advancedBookingLimit: number;
+}
 // Interfaces copied from backend DTOs
 export interface CourtAvailabilityDto {
   dayOfWeek: number;
@@ -119,5 +169,155 @@ export async function getAvailableSlots(courtId: string, date: string): Promise<
   });
   if (!res.ok) throw new Error("Failed to fetch available slots");
   return res.json();
+}
+
+// Court Settings API Functions
+
+export async function getCourtSettings(courtId: string): Promise<CourtSettings> {
+  const res = await fetch(`${API_BASE}/${courtId}/settings`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to fetch court settings: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function updateAdvancedBookingLimit(courtId: string, limit: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/${courtId}/advanced-booking-limit`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+    body: JSON.stringify({ advancedBookingLimit: limit }),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to update advanced booking limit: ${errorText}`);
+  }
+}
+
+// Court Unavailabilities API Functions
+
+export async function getCourtUnavailabilities(courtId: string): Promise<CourtUnavailability[]> {
+  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to fetch court unavailabilities: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function createCourtUnavailability(courtId: string, data: CreateCourtUnavailabilityDto): Promise<CourtUnavailability> {
+  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to create court unavailability: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function updateCourtUnavailability(courtId: string, unavailabilityId: string, data: UpdateCourtUnavailabilityDto): Promise<CourtUnavailability> {
+  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to update court unavailability: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function deleteCourtUnavailability(courtId: string, unavailabilityId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to delete court unavailability: ${errorText}`);
+  }
+}
+
+// Court Peak Schedules API Functions
+
+export async function getCourtPeakSchedules(courtId: string): Promise<PeakSchedule[]> {
+  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules`, {
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    }
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to fetch court peak schedules: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function createCourtPeakSchedule(courtId: string, data: CreateCourtPeakScheduleDto): Promise<PeakSchedule> {
+  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to create court peak schedule: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function updateCourtPeakSchedule(courtId: string, scheduleId: string, data: UpdateCourtPeakScheduleDto): Promise<PeakSchedule> {
+  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to update court peak schedule: ${errorText}`);
+  }
+  return res.json();
+}
+
+export async function deleteCourtPeakSchedule(courtId: string, scheduleId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+    },
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to delete court peak schedule: ${errorText}`);
+  }
 }
 

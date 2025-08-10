@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CourtAvailabilityDto, CreateCourtDto, CourtUnavailabilityDto, PeakScheduleDto } from './dto/create-court.dto';
 import { UpdateCourtDto } from './dto/update-court.dto';
 import { SettingDto } from './dto/setting.dto';
+import { CreateCourtUnavailabilityDto } from './dto/create-court-unavailability.dto';
+import { UpdateCourtUnavailabilityDto } from './dto/update-court-unavailability.dto';
+import { CreateCourtPeakScheduleDto } from './dto/create-court-peak-schedule.dto';
+import { UpdateCourtPeakScheduleDto } from './dto/update-court-peak-schedule.dto';
+import { UpdateAdvancedBookingLimitDto } from './dto/update-advanced-booking-limit.dto';
 import { PrismaService } from '../database/prisma.service';
-import { Court, CourtAvailability, BookingStatus } from '@prisma/client';
+import { Court, CourtAvailability, BookingStatus, CourtUnavailability, PeakSchedule } from '@prisma/client';
 import { CourtResponseDto } from './dto/court-response.dto';
 
 @Injectable()
@@ -260,6 +265,414 @@ export class CourtsService {
         price: peak.price,
       })) || [],
     };
+  }
+
+  // Settings management methods
+
+  async getCourtSettings(courtId: string): Promise<SettingDto> {
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+      include: {
+        unavailability: true,
+        peakSchedules: true,
+      },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    return {
+      courtId: court.id,
+      advancedBookingLimit: court.advancedBookingLimit,
+      unavailability: court.unavailability?.map((unavail) => ({
+        startTime: unavail.startTime || undefined,
+        endTime: unavail.endTime || undefined,
+        date: unavail.date instanceof Date ? unavail.date.toISOString() : unavail.date,
+        reason: unavail.reason,
+        isRecurring: unavail.isRecurring,
+      })) || [],
+      peakSchedules: court.peakSchedules?.map((peak) => ({
+        startTime: peak.startTime,
+        endTime: peak.endTime,
+        dayOfWeek: peak.dayOfWeek,
+        price: peak.price,
+      })) || [],
+    };
+  }
+
+  // Advanced booking limit management
+
+  async updateAdvancedBookingLimit(courtId: string, updateDto: UpdateAdvancedBookingLimitDto): Promise<Court> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    return this.prisma.court.update({
+      where: { id: courtId },
+      data: {
+        advancedBookingLimit: updateDto.advancedBookingLimit,
+      },
+    });
+  }
+
+  // Court unavailabilities CRUD operations
+
+  async getCourtUnavailabilities(courtId: string): Promise<CourtUnavailability[]> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    return this.prisma.courtUnavailability.findMany({
+      where: { courtId },
+      orderBy: [
+        { date: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+  }
+
+  async createCourtUnavailability(courtId: string, createDto: CreateCourtUnavailabilityDto): Promise<CourtUnavailability> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Validate time range if both start and end times are provided
+    if (createDto.startTime && createDto.endTime) {
+      this.validateTimeRange(createDto.startTime, createDto.endTime);
+    }
+
+    // Check for conflicts with existing unavailabilities
+    await this.validateUnavailabilityConflicts(courtId, createDto);
+
+    return this.prisma.courtUnavailability.create({
+      data: {
+        courtId,
+        date: new Date(createDto.date),
+        startTime: createDto.startTime,
+        endTime: createDto.endTime,
+        reason: createDto.reason,
+        isRecurring: createDto.isRecurring || false,
+      },
+    });
+  }
+
+  async updateCourtUnavailability(
+    courtId: string,
+    unavailabilityId: string,
+    updateDto: UpdateCourtUnavailabilityDto,
+  ): Promise<CourtUnavailability> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Verify unavailability exists and belongs to the court
+    const unavailability = await this.prisma.courtUnavailability.findFirst({
+      where: {
+        id: unavailabilityId,
+        courtId,
+      },
+    });
+
+    if (!unavailability) {
+      throw new NotFoundException(`Unavailability with ID ${unavailabilityId} not found for court ${courtId}`);
+    }
+
+    // Validate time range if both start and end times are provided
+    if (updateDto.startTime && updateDto.endTime) {
+      this.validateTimeRange(updateDto.startTime, updateDto.endTime);
+    }
+
+    // Check for conflicts with existing unavailabilities (excluding current one)
+    if (updateDto.date || updateDto.startTime || updateDto.endTime) {
+      await this.validateUnavailabilityConflicts(courtId, updateDto, unavailabilityId);
+    }
+
+    const updateData: any = {};
+    if (updateDto.date) updateData.date = new Date(updateDto.date);
+    if (updateDto.startTime !== undefined) updateData.startTime = updateDto.startTime;
+    if (updateDto.endTime !== undefined) updateData.endTime = updateDto.endTime;
+    if (updateDto.reason !== undefined) updateData.reason = updateDto.reason;
+    if (updateDto.isRecurring !== undefined) updateData.isRecurring = updateDto.isRecurring;
+
+    return this.prisma.courtUnavailability.update({
+      where: { id: unavailabilityId },
+      data: updateData,
+    });
+  }
+
+  async deleteCourtUnavailability(courtId: string, unavailabilityId: string): Promise<void> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Verify unavailability exists and belongs to the court
+    const unavailability = await this.prisma.courtUnavailability.findFirst({
+      where: {
+        id: unavailabilityId,
+        courtId,
+      },
+    });
+
+    if (!unavailability) {
+      throw new NotFoundException(`Unavailability with ID ${unavailabilityId} not found for court ${courtId}`);
+    }
+
+    await this.prisma.courtUnavailability.delete({
+      where: { id: unavailabilityId },
+    });
+  }
+
+  // Peak schedules CRUD operations
+
+  async getCourtPeakSchedules(courtId: string): Promise<PeakSchedule[]> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    return this.prisma.peakSchedule.findMany({
+      where: { courtId },
+      orderBy: [
+        { dayOfWeek: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+  }
+
+  async createCourtPeakSchedule(courtId: string, createDto: CreateCourtPeakScheduleDto): Promise<PeakSchedule> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Validate time range
+    this.validateTimeRange(createDto.startTime, createDto.endTime);
+
+    // Check for overlapping schedules
+    await this.validatePeakScheduleOverlap(courtId, createDto);
+
+    return this.prisma.peakSchedule.create({
+      data: {
+        courtId,
+        dayOfWeek: createDto.dayOfWeek,
+        startTime: createDto.startTime,
+        endTime: createDto.endTime,
+        price: createDto.price,
+      },
+    });
+  }
+
+  async updateCourtPeakSchedule(
+    courtId: string,
+    scheduleId: string,
+    updateDto: UpdateCourtPeakScheduleDto,
+  ): Promise<PeakSchedule> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Verify peak schedule exists and belongs to the court
+    const schedule = await this.prisma.peakSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        courtId,
+      },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException(`Peak schedule with ID ${scheduleId} not found for court ${courtId}`);
+    }
+
+    // Validate time range if both start and end times are provided
+    if (updateDto.startTime && updateDto.endTime) {
+      this.validateTimeRange(updateDto.startTime, updateDto.endTime);
+    }
+
+    // Check for overlapping schedules (excluding current one)
+    if (updateDto.dayOfWeek !== undefined || updateDto.startTime || updateDto.endTime) {
+      await this.validatePeakScheduleOverlap(courtId, updateDto, scheduleId);
+    }
+
+    return this.prisma.peakSchedule.update({
+      where: { id: scheduleId },
+      data: updateDto,
+    });
+  }
+
+  async deleteCourtPeakSchedule(courtId: string, scheduleId: string): Promise<void> {
+    // Verify court exists
+    const court = await this.prisma.court.findUnique({
+      where: { id: courtId },
+    });
+
+    if (!court) {
+      throw new NotFoundException(`Court with ID ${courtId} not found`);
+    }
+
+    // Verify peak schedule exists and belongs to the court
+    const schedule = await this.prisma.peakSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        courtId,
+      },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException(`Peak schedule with ID ${scheduleId} not found for court ${courtId}`);
+    }
+
+    await this.prisma.peakSchedule.delete({
+      where: { id: scheduleId },
+    });
+  }
+
+  // Validation helper methods
+
+  private validateTimeRange(startTime: string, endTime: string): void {
+    const start = this.parseTime(startTime);
+    const end = this.parseTime(endTime);
+
+    if (start >= end) {
+      throw new BadRequestException('Start time must be before end time');
+    }
+  }
+
+  private parseTime(timeString: string): number {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      throw new BadRequestException(`Invalid time format: ${timeString}. Expected format: HH:MM`);
+    }
+    return hours * 60 + minutes;
+  }
+
+  private async validateUnavailabilityConflicts(
+    courtId: string,
+    unavailabilityData: CreateCourtUnavailabilityDto | UpdateCourtUnavailabilityDto,
+    excludeId?: string,
+  ): Promise<void> {
+    const date = unavailabilityData.date ? new Date(unavailabilityData.date) : null;
+    if (!date) return;
+
+    const whereClause: any = {
+      courtId,
+      date,
+    };
+
+    if (excludeId) {
+      whereClause.id = { not: excludeId };
+    }
+
+    const existingUnavailabilities = await this.prisma.courtUnavailability.findMany({
+      where: whereClause,
+    });
+
+    for (const existing of existingUnavailabilities) {
+      if (this.hasTimeOverlap(
+        unavailabilityData.startTime,
+        unavailabilityData.endTime,
+        existing.startTime,
+        existing.endTime,
+      )) {
+        throw new BadRequestException(
+          `Unavailability conflicts with existing unavailability on ${date.toDateString()}`,
+        );
+      }
+    }
+  }
+
+  private async validatePeakScheduleOverlap(
+    courtId: string,
+    scheduleData: CreateCourtPeakScheduleDto | UpdateCourtPeakScheduleDto,
+    excludeId?: string,
+  ): Promise<void> {
+    const dayOfWeek = scheduleData.dayOfWeek;
+    if (dayOfWeek === undefined) return;
+
+    const whereClause: any = {
+      courtId,
+      dayOfWeek,
+    };
+
+    if (excludeId) {
+      whereClause.id = { not: excludeId };
+    }
+
+    const existingSchedules = await this.prisma.peakSchedule.findMany({
+      where: whereClause,
+    });
+
+    for (const existing of existingSchedules) {
+      if (this.hasTimeOverlap(
+        scheduleData.startTime,
+        scheduleData.endTime,
+        existing.startTime,
+        existing.endTime,
+      )) {
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        throw new BadRequestException(
+          `Peak schedule overlaps with existing schedule on ${dayNames[dayOfWeek]}`,
+        );
+      }
+    }
+  }
+
+  private hasTimeOverlap(
+    startTime1?: string | null,
+    endTime1?: string | null,
+    startTime2?: string | null,
+    endTime2?: string | null,
+  ): boolean {
+    // If any time is missing, consider it as full day overlap
+    if (!startTime1 || !endTime1 || !startTime2 || !endTime2) {
+      return true;
+    }
+
+    const start1 = this.parseTime(startTime1);
+    const end1 = this.parseTime(endTime1);
+    const start2 = this.parseTime(startTime2);
+    const end2 = this.parseTime(endTime2);
+
+    // Check if time ranges overlap
+    return start1 < end2 && start2 < end1;
   }
 
 }
