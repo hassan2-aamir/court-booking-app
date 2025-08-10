@@ -86,14 +86,27 @@
   - Set up state management for settings data
   - _Requirements: 1.2, 4.1, 4.3, 5.3_
 
-- [ ] 8. Implement advanced booking limit settings section
+- [x] 8. Implement advanced booking limit settings section
+
+
+
+
+
+
+
+
   - Create input field for booking limit with validation
   - Add save functionality with API integration
   - Implement proper error handling and user feedback
   - Add confirmation messages for successful updates
   - _Requirements: 1.3, 1.4, 1.5, 5.5_
 
-- [ ] 9. Build court unavailabilities management section
+- [x] 9. Build court unavailabilities management section
+
+
+
+
+
   - Create list view for displaying existing unavailabilities
   - Implement add unavailability form with date, time, and reason fields
   - Add edit and delete functionality for existing unavailabilities

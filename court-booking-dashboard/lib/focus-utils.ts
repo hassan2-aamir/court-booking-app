@@ -13,7 +13,7 @@ export function safeFocus(element: HTMLElement | null, delay = 0) {
     const isHidden = element.closest('[aria-hidden="true"]') !== null
     const isDisplayNone = getComputedStyle(element).display === 'none'
     const isVisibilityHidden = getComputedStyle(element).visibility === 'hidden'
-    
+
     if (!isHidden && !isDisplayNone && !isVisibilityHidden) {
       element.focus()
     }

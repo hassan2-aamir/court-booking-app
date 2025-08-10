@@ -11,10 +11,18 @@ export interface Court extends CourtResponseDto {
   maxBookingsPerUserPerDay?: number;
 }
 
-// Court Settings Types
+// Court Settings Types (Frontend normalized format)
 export interface CourtSettings {
   advancedBookingLimit: number;
   unavailabilities: CourtUnavailability[];
+  peakSchedules: PeakSchedule[];
+}
+
+// Backend response format (matches actual API response)
+interface CourtSettingsResponse {
+  courtId: string;
+  advancedBookingLimit: number;
+  unavailability: CourtUnavailability[]; // Note: singular name from backend
   peakSchedules: PeakSchedule[];
 }
 
@@ -183,7 +191,22 @@ export async function getCourtSettings(courtId: string): Promise<CourtSettings> 
     const errorText = await res.text();
     throw new Error(`Failed to fetch court settings: ${errorText}`);
   }
-  return res.json();
+  
+  const backendResponse: CourtSettingsResponse = await res.json();
+  
+  // Normalize the response to match frontend expectations
+  const normalizedSettings: CourtSettings = {
+    advancedBookingLimit: backendResponse.advancedBookingLimit,
+    unavailabilities: Array.isArray(backendResponse.unavailability) ? 
+      backendResponse.unavailability.map((unavail, index) => ({
+        ...unavail,
+        id: unavail.id || `temp-${index}`, // Add temporary ID if missing
+        courtId: backendResponse.courtId
+      })) : [],
+    peakSchedules: Array.isArray(backendResponse.peakSchedules) ? backendResponse.peakSchedules : []
+  };
+  
+  return normalizedSettings;
 }
 
 export async function updateAdvancedBookingLimit(courtId: string, limit: number): Promise<void> {

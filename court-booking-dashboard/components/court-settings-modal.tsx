@@ -27,11 +27,17 @@ import {
   CourtSettings, 
   CourtUnavailability, 
   PeakSchedule,
+  CreateCourtUnavailabilityDto,
+  UpdateCourtUnavailabilityDto,
   getCourtSettings,
-  updateAdvancedBookingLimit
+  updateAdvancedBookingLimit,
+  createCourtUnavailability,
+  updateCourtUnavailability,
+  deleteCourtUnavailability
 } from "../lib/api/courts"
 import { useToast } from "@/components/toast-provider"
 import { safeFocus } from "@/lib/focus-utils"
+import { UnavailabilityForm } from "./unavailability-form"
 
 interface CourtSettingsModalProps {
   isOpen: boolean
@@ -57,6 +63,14 @@ export function CourtSettingsModal({
   const [bookingLimitForm, setBookingLimitForm] = useState({
     advancedBookingLimit: 30
   })
+  const [bookingLimitError, setBookingLimitError] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Unavailabilities management state
+  const [unavailabilityFormOpen, setUnavailabilityFormOpen] = useState(false)
+  const [editingUnavailability, setEditingUnavailability] = useState<CourtUnavailability | null>(null)
+  const [unavailabilityLoading, setUnavailabilityLoading] = useState(false)
+  const [deletingUnavailabilityId, setDeletingUnavailabilityId] = useState<string | null>(null)
 
   // Load settings when modal opens
   useEffect(() => {
@@ -71,6 +85,8 @@ export function CourtSettingsModal({
       setBookingLimitForm({
         advancedBookingLimit: settings.advancedBookingLimit
       })
+      setBookingLimitError(null)
+      setHasUnsavedChanges(false)
     }
   }, [settings])
 
@@ -81,6 +97,12 @@ export function CourtSettingsModal({
         setSettings(null)
         setError(null)
         setActiveTab("booking-limit")
+        setBookingLimitError(null)
+        setHasUnsavedChanges(false)
+        setUnavailabilityFormOpen(false)
+        setEditingUnavailability(null)
+        setUnavailabilityLoading(false)
+        setDeletingUnavailabilityId(null)
       }, 200) // match Dialog close animation duration
       return () => clearTimeout(timeout)
     }
@@ -94,7 +116,9 @@ export function CourtSettingsModal({
     
     try {
       const courtSettings = await getCourtSettings(court.id)
-      setSettings(courtSettings)
+      // Settings are already normalized by the API function
+      const normalizedSettings = courtSettings
+      setSettings(normalizedSettings)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load court settings"
       setError(errorMessage)
@@ -108,10 +132,47 @@ export function CourtSettingsModal({
     }
   }
 
+  const validateBookingLimit = (value: number): string | null => {
+    if (isNaN(value) || value < 1) {
+      return "Booking limit must be at least 1 day"
+    }
+    if (value > 365) {
+      return "Booking limit cannot exceed 365 days"
+    }
+    return null
+  }
+
+  const handleBookingLimitChange = (value: string) => {
+    const numValue = Number(value)
+    setBookingLimitForm({
+      ...bookingLimitForm,
+      advancedBookingLimit: numValue
+    })
+    
+    // Check if value has changed from saved value
+    if (settings) {
+      setHasUnsavedChanges(numValue !== settings.advancedBookingLimit)
+    }
+    
+    // Clear error when user starts typing
+    if (bookingLimitError) {
+      setBookingLimitError(null)
+    }
+  }
+
   const handleSaveBookingLimit = async () => {
     if (!court) return
     
+    // Validate input before saving
+    const validationError = validateBookingLimit(bookingLimitForm.advancedBookingLimit)
+    if (validationError) {
+      setBookingLimitError(validationError)
+      return
+    }
+    
     setSaving(true)
+    setBookingLimitError(null)
+    
     try {
       await updateAdvancedBookingLimit(court.id, bookingLimitForm.advancedBookingLimit)
       
@@ -125,6 +186,7 @@ export function CourtSettingsModal({
         onSettingsUpdate?.(court.id, updatedSettings)
       }
       
+      setHasUnsavedChanges(false)
       addToast({
         type: "success",
         title: "Success",
@@ -132,6 +194,7 @@ export function CourtSettingsModal({
       })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to update booking limit"
+      setBookingLimitError(errorMessage)
       addToast({
         type: "error",
         title: "Error",
@@ -146,7 +209,125 @@ export function CourtSettingsModal({
     setSettings(null)
     setError(null)
     setActiveTab("booking-limit")
+    setBookingLimitError(null)
+    setHasUnsavedChanges(false)
+    setUnavailabilityFormOpen(false)
+    setEditingUnavailability(null)
+    setUnavailabilityLoading(false)
+    setDeletingUnavailabilityId(null)
     onClose()
+  }
+
+  // Unavailabilities management functions
+  const handleAddUnavailability = () => {
+    setEditingUnavailability(null)
+    setUnavailabilityFormOpen(true)
+  }
+
+  const handleEditUnavailability = (unavailability: CourtUnavailability) => {
+    setEditingUnavailability(unavailability)
+    setUnavailabilityFormOpen(true)
+  }
+
+  const handleUnavailabilitySubmit = async (data: CreateCourtUnavailabilityDto | UpdateCourtUnavailabilityDto) => {
+    if (!court || !settings) return
+
+    setUnavailabilityLoading(true)
+    
+    try {
+      let updatedUnavailability: CourtUnavailability
+
+      if (editingUnavailability) {
+        // Update existing unavailability
+        updatedUnavailability = await updateCourtUnavailability(
+          court.id, 
+          editingUnavailability.id, 
+          data as UpdateCourtUnavailabilityDto
+        )
+        
+        // Update local state
+        const currentUnavailabilities = settings.unavailabilities || []
+        const updatedUnavailabilities = currentUnavailabilities.map(u => 
+          u.id === editingUnavailability.id ? updatedUnavailability : u
+        )
+        const updatedSettings = { ...settings, unavailabilities: updatedUnavailabilities }
+        setSettings(updatedSettings)
+        onSettingsUpdate?.(court.id, updatedSettings)
+
+        addToast({
+          type: "success",
+          title: "Success",
+          description: "Unavailability updated successfully",
+        })
+      } else {
+        // Create new unavailability
+        updatedUnavailability = await createCourtUnavailability(
+          court.id, 
+          data as CreateCourtUnavailabilityDto
+        )
+        // Update local state
+        const currentUnavailabilities = settings.unavailabilities || []
+        const updatedUnavailabilities = [...currentUnavailabilities, updatedUnavailability]
+        const updatedSettings = { ...settings, unavailabilities: updatedUnavailabilities }
+        setSettings(updatedSettings)
+        onSettingsUpdate?.(court.id, updatedSettings)
+
+        // Reload settings to ensure we have the latest data from the server
+        setTimeout(() => {
+          loadCourtSettings()
+        }, 500)
+
+        addToast({
+          type: "success",
+          title: "Success",
+          description: "Unavailability created successfully",
+        })
+      }
+
+      setUnavailabilityFormOpen(false)
+      setEditingUnavailability(null)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to save unavailability"
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setUnavailabilityLoading(false)
+    }
+  }
+
+  const handleDeleteUnavailability = async (unavailabilityId: string) => {
+    if (!court || !settings) return
+
+    setDeletingUnavailabilityId(unavailabilityId)
+    
+    try {
+      await deleteCourtUnavailability(court.id, unavailabilityId)
+      
+      // Update local state
+      const currentUnavailabilities = settings.unavailabilities || []
+      const updatedUnavailabilities = currentUnavailabilities.filter(u => u.id !== unavailabilityId)
+      const updatedSettings = { ...settings, unavailabilities: updatedUnavailabilities }
+      setSettings(updatedSettings)
+      onSettingsUpdate?.(court.id, updatedSettings)
+
+      addToast({
+        type: "success",
+        title: "Success",
+        description: "Unavailability deleted successfully",
+      })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete unavailability"
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setDeletingUnavailabilityId(null)
+    }
   }
 
   const getDayName = (dayOfWeek: number): string => {
@@ -237,7 +418,7 @@ export function CourtSettingsModal({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Set how many days in advance customers can book this court.
+                    Set how many days in advance customers can book this court. Enter a value between 1 and 365 days.
                   </p>
                   
                   <div className="flex items-end gap-4">
@@ -249,17 +430,21 @@ export function CourtSettingsModal({
                         min="1"
                         max="365"
                         value={bookingLimitForm.advancedBookingLimit}
-                        onChange={(e) => setBookingLimitForm({
-                          ...bookingLimitForm,
-                          advancedBookingLimit: Number(e.target.value)
-                        })}
+                        onChange={(e) => handleBookingLimitChange(e.target.value)}
                         placeholder="30"
+                        className={bookingLimitError ? "border-red-500 focus:border-red-500" : ""}
                       />
+                      {bookingLimitError && (
+                        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                          <AlertCircle className="h-4 w-4" />
+                          {bookingLimitError}
+                        </div>
+                      )}
                     </div>
                     <Button 
                       onClick={handleSaveBookingLimit}
-                      disabled={saving}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={saving || !!bookingLimitError || !hasUnsavedChanges}
+                      className={`${hasUnsavedChanges && !bookingLimitError ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400'} disabled:opacity-50`}
                     >
                       {saving ? (
                         <>
@@ -269,7 +454,7 @@ export function CourtSettingsModal({
                       ) : (
                         <>
                           <Save className="h-4 w-4 mr-2" />
-                          Save
+                          {hasUnsavedChanges ? 'Save Changes' : 'Saved'}
                         </>
                       )}
                     </Button>
@@ -293,15 +478,32 @@ export function CourtSettingsModal({
                     <div className="flex items-center gap-2">
                       <Clock className="h-5 w-5" />
                       Court Unavailabilities
+                      <span className="text-sm font-normal text-gray-500">
+                        ({settings?.unavailabilities?.length || 0} items)
+                      </span>
                     </div>
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Unavailability
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={loadCourtSettings}
+                        disabled={loading}
+                      >
+                        {loading ? "Loading..." : "Refresh"}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={handleAddUnavailability}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Unavailability
+                      </Button>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {settings?.unavailabilities && settings.unavailabilities.length > 0 ? (
+                  {settings?.unavailabilities && Array.isArray(settings.unavailabilities) && settings.unavailabilities.length > 0 ? (
                     <ScrollArea className="h-64">
                       <div className="space-y-3">
                         {settings.unavailabilities.map((unavailability) => (
@@ -315,7 +517,9 @@ export function CourtSettingsModal({
                                   {formatDate(unavailability.date)}
                                 </Badge>
                                 {unavailability.isRecurring && (
-                                  <Badge variant="secondary">Recurring</Badge>
+                                  <Badge variant="secondary" className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                                    Recurring
+                                  </Badge>
                                 )}
                               </div>
                               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -324,7 +528,7 @@ export function CourtSettingsModal({
                                     {formatTime(unavailability.startTime)} - {formatTime(unavailability.endTime)}
                                   </>
                                 ) : (
-                                  "All day"
+                                  <span className="font-medium">All day</span>
                                 )}
                                 {unavailability.reason && (
                                   <span className="ml-2">• {unavailability.reason}</span>
@@ -332,11 +536,26 @@ export function CourtSettingsModal({
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button size="sm" variant="outline">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditUnavailability(unavailability)}
+                                disabled={unavailabilityLoading}
+                              >
                                 <Edit className="h-3 w-3" />
                               </Button>
-                              <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
-                                <Trash2 className="h-3 w-3" />
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => handleDeleteUnavailability(unavailability.id)}
+                                disabled={deletingUnavailabilityId === unavailability.id}
+                              >
+                                {deletingUnavailabilityId === unavailability.id ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                                ) : (
+                                  <Trash2 className="h-3 w-3" />
+                                )}
                               </Button>
                             </div>
                           </div>
@@ -424,6 +643,19 @@ export function CourtSettingsModal({
           </Button>
         </div>
       </DialogContent>
+
+      {/* Unavailability Form Modal */}
+      <UnavailabilityForm
+        isOpen={unavailabilityFormOpen}
+        onClose={() => {
+          setUnavailabilityFormOpen(false)
+          setEditingUnavailability(null)
+        }}
+        onSubmit={handleUnavailabilitySubmit}
+        unavailability={editingUnavailability}
+        isEditing={!!editingUnavailability}
+        loading={unavailabilityLoading}
+      />
     </Dialog>
   )
 }
