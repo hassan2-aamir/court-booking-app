@@ -54,7 +54,7 @@ export interface CreateCourtUnavailabilityDto {
   isRecurring?: boolean;
 }
 
-export interface UpdateCourtUnavailabilityDto extends Partial<CreateCourtUnavailabilityDto> {}
+export interface UpdateCourtUnavailabilityDto extends Partial<CreateCourtUnavailabilityDto> { }
 
 export interface CreateCourtPeakScheduleDto {
   dayOfWeek: number;
@@ -63,7 +63,7 @@ export interface CreateCourtPeakScheduleDto {
   price: number;
 }
 
-export interface UpdateCourtPeakScheduleDto extends Partial<CreateCourtPeakScheduleDto> {}
+export interface UpdateCourtPeakScheduleDto extends Partial<CreateCourtPeakScheduleDto> { }
 
 export interface UpdateAdvancedBookingLimitDto {
   advancedBookingLimit: number;
@@ -87,7 +87,7 @@ export interface CreateCourtDto {
   availability: CourtAvailabilityDto[];
 }
 
-export interface UpdateCourtDto extends Partial<CreateCourtDto> {}
+export interface UpdateCourtDto extends Partial<CreateCourtDto> { }
 
 export interface CourtResponseDto {
   id: string;
@@ -107,9 +107,10 @@ const API_BASE = /*process.env.NEXT_PUBLIC_API_URL+'/courts' ||*/ "http://localh
 export async function createCourt(data: CreateCourtDto): Promise<CourtResponseDto> {
   const res = await fetch(`${API_BASE}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json",
+    headers: {
+      "Content-Type": "application/json",
       "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-     },
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to create court");
@@ -140,7 +141,8 @@ export async function getCourt(id: string): Promise<CourtResponseDto> {
 export async function updateCourt(id: string, data: UpdateCourtDto): Promise<CourtResponseDto> {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" ,
+    headers: {
+      "Content-Type": "application/json",
       "Authorization": `Bearer ${localStorage.getItem("access_token")}`
     },
     body: JSON.stringify(data),
@@ -159,8 +161,9 @@ export async function deleteCourt(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete court");
 }
 
-export async function getAvailabilityToday(id:string): Promise<CourtAvailabilityDto[]> {
-  const res = await fetch(`${API_BASE}/availability-today/${id}`, { method: "POST" ,
+export async function getAvailabilityToday(id: string): Promise<CourtAvailabilityDto[]> {
+  const res = await fetch(`${API_BASE}/availability-today/${id}`, {
+    method: "POST",
     headers: {
       "Authorization": `Bearer ${localStorage.getItem("access_token")}`
     },
@@ -194,16 +197,29 @@ export async function getCourtSettings(courtId: string): Promise<CourtSettings> 
   
   const backendResponse: CourtSettingsResponse = await res.json();
   
-  // Normalize the response to match frontend expectations
+  // Map the backend response to frontend format, ensuring IDs are properly handled
+  // Backend should now return complete unavailabilities and peak schedules with IDs
   const normalizedSettings: CourtSettings = {
     advancedBookingLimit: backendResponse.advancedBookingLimit,
     unavailabilities: Array.isArray(backendResponse.unavailability) ? 
-      backendResponse.unavailability.map((unavail, index) => ({
-        ...unavail,
-        id: unavail.id || `temp-${index}`, // Add temporary ID if missing
-        courtId: backendResponse.courtId
+      backendResponse.unavailability.map((unavail) => ({
+        id: unavail.id, // Backend should now return this ID
+        courtId: unavail.courtId || backendResponse.courtId,
+        date: unavail.date,
+        startTime: unavail.startTime,
+        endTime: unavail.endTime,
+        reason: unavail.reason,
+        isRecurring: unavail.isRecurring
       })) : [],
-    peakSchedules: Array.isArray(backendResponse.peakSchedules) ? backendResponse.peakSchedules : []
+    peakSchedules: Array.isArray(backendResponse.peakSchedules) ? 
+      backendResponse.peakSchedules.map((schedule) => ({
+        id: schedule.id, // Backend should now return this ID
+        courtId: schedule.courtId || backendResponse.courtId,
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        price: schedule.price
+      })) : []
   };
   
   return normalizedSettings;

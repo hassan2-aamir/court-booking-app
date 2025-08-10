@@ -286,6 +286,8 @@ export class CourtsService {
       courtId: court.id,
       advancedBookingLimit: court.advancedBookingLimit,
       unavailability: court.unavailability?.map((unavail) => ({
+        id: unavail.id, // Include the ID for frontend CRUD operations
+        courtId: unavail.courtId,
         startTime: unavail.startTime || undefined,
         endTime: unavail.endTime || undefined,
         date: unavail.date instanceof Date ? unavail.date.toISOString() : unavail.date,
@@ -293,6 +295,8 @@ export class CourtsService {
         isRecurring: unavail.isRecurring,
       })) || [],
       peakSchedules: court.peakSchedules?.map((peak) => ({
+        id: peak.id, // Include the ID for frontend CRUD operations
+        courtId: peak.courtId,
         startTime: peak.startTime,
         endTime: peak.endTime,
         dayOfWeek: peak.dayOfWeek,

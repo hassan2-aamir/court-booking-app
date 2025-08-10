@@ -2,6 +2,12 @@ import { IsString, IsNumber, IsOptional, IsArray, IsBoolean, IsDateString, Valid
 import { Type } from 'class-transformer';
 
 export class UnavailabilitySettingDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  courtId: string;
+
   @IsOptional()
   @IsString()
   startTime?: string;
@@ -21,6 +27,12 @@ export class UnavailabilitySettingDto {
 }
 
 export class PeakScheduleSettingDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  courtId: string;
+
   @IsString()
   startTime: string;
 

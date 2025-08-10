@@ -114,6 +114,13 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 2.8_
 
 - [ ] 10. Create peak schedules management section
+
+
+
+
+
+
+
   - Build day-organized view for displaying peak schedules
   - Implement add peak schedule form with day, time, and price fields
   - Add edit and delete functionality for existing schedules
