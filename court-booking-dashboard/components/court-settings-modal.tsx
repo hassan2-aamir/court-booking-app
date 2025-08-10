@@ -29,15 +29,21 @@ import {
   PeakSchedule,
   CreateCourtUnavailabilityDto,
   UpdateCourtUnavailabilityDto,
+  CreateCourtPeakScheduleDto,
+  UpdateCourtPeakScheduleDto,
   getCourtSettings,
   updateAdvancedBookingLimit,
   createCourtUnavailability,
   updateCourtUnavailability,
-  deleteCourtUnavailability
+  deleteCourtUnavailability,
+  createCourtPeakSchedule,
+  updateCourtPeakSchedule,
+  deleteCourtPeakSchedule
 } from "../lib/api/courts"
 import { useToast } from "@/components/toast-provider"
 import { safeFocus } from "@/lib/focus-utils"
 import { UnavailabilityForm } from "./unavailability-form"
+import { PeakScheduleForm } from "./peak-schedule-form"
 
 interface CourtSettingsModalProps {
   isOpen: boolean
@@ -72,6 +78,12 @@ export function CourtSettingsModal({
   const [unavailabilityLoading, setUnavailabilityLoading] = useState(false)
   const [deletingUnavailabilityId, setDeletingUnavailabilityId] = useState<string | null>(null)
 
+  // Peak schedules management state
+  const [peakScheduleFormOpen, setPeakScheduleFormOpen] = useState(false)
+  const [editingPeakSchedule, setEditingPeakSchedule] = useState<PeakSchedule | null>(null)
+  const [peakScheduleLoading, setPeakScheduleLoading] = useState(false)
+  const [deletingPeakScheduleId, setDeletingPeakScheduleId] = useState<string | null>(null)
+
   // Load settings when modal opens
   useEffect(() => {
     if (isOpen && court) {
@@ -103,6 +115,10 @@ export function CourtSettingsModal({
         setEditingUnavailability(null)
         setUnavailabilityLoading(false)
         setDeletingUnavailabilityId(null)
+        setPeakScheduleFormOpen(false)
+        setEditingPeakSchedule(null)
+        setPeakScheduleLoading(false)
+        setDeletingPeakScheduleId(null)
       }, 200) // match Dialog close animation duration
       return () => clearTimeout(timeout)
     }
@@ -215,6 +231,10 @@ export function CourtSettingsModal({
     setEditingUnavailability(null)
     setUnavailabilityLoading(false)
     setDeletingUnavailabilityId(null)
+    setPeakScheduleFormOpen(false)
+    setEditingPeakSchedule(null)
+    setPeakScheduleLoading(false)
+    setDeletingPeakScheduleId(null)
     onClose()
   }
 
@@ -272,11 +292,6 @@ export function CourtSettingsModal({
         setSettings(updatedSettings)
         onSettingsUpdate?.(court.id, updatedSettings)
 
-        // Reload settings to ensure we have the latest data from the server
-        setTimeout(() => {
-          loadCourtSettings()
-        }, 500)
-
         addToast({
           type: "success",
           title: "Success",
@@ -330,6 +345,114 @@ export function CourtSettingsModal({
     }
   }
 
+  // Peak schedules management functions
+  const handleAddPeakSchedule = () => {
+    setEditingPeakSchedule(null)
+    setPeakScheduleFormOpen(true)
+  }
+
+  const handleEditPeakSchedule = (peakSchedule: PeakSchedule) => {
+    setEditingPeakSchedule(peakSchedule)
+    setPeakScheduleFormOpen(true)
+  }
+
+  const handlePeakScheduleSubmit = async (data: CreateCourtPeakScheduleDto | UpdateCourtPeakScheduleDto) => {
+    if (!court || !settings) return
+
+    setPeakScheduleLoading(true)
+    
+    try {
+      let updatedPeakSchedule: PeakSchedule
+
+      if (editingPeakSchedule) {
+        // Update existing peak schedule
+        updatedPeakSchedule = await updateCourtPeakSchedule(
+          court.id, 
+          editingPeakSchedule.id, 
+          data as UpdateCourtPeakScheduleDto
+        )
+        
+        // Update local state
+        const currentPeakSchedules = settings.peakSchedules || []
+        const updatedPeakSchedules = currentPeakSchedules.map(p => 
+          p.id === editingPeakSchedule.id ? updatedPeakSchedule : p
+        )
+        const updatedSettings = { ...settings, peakSchedules: updatedPeakSchedules }
+        setSettings(updatedSettings)
+        onSettingsUpdate?.(court.id, updatedSettings)
+
+        addToast({
+          type: "success",
+          title: "Success",
+          description: "Peak schedule updated successfully",
+        })
+      } else {
+        // Create new peak schedule
+        updatedPeakSchedule = await createCourtPeakSchedule(
+          court.id, 
+          data as CreateCourtPeakScheduleDto
+        )
+        
+        // Update local state
+        const currentPeakSchedules = settings.peakSchedules || []
+        const updatedPeakSchedules = [...currentPeakSchedules, updatedPeakSchedule]
+        const updatedSettings = { ...settings, peakSchedules: updatedPeakSchedules }
+        setSettings(updatedSettings)
+        onSettingsUpdate?.(court.id, updatedSettings)
+
+        addToast({
+          type: "success",
+          title: "Success",
+          description: "Peak schedule created successfully",
+        })
+      }
+
+      setPeakScheduleFormOpen(false)
+      setEditingPeakSchedule(null)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to save peak schedule"
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setPeakScheduleLoading(false)
+    }
+  }
+
+  const handleDeletePeakSchedule = async (peakScheduleId: string) => {
+    if (!court || !settings) return
+
+    setDeletingPeakScheduleId(peakScheduleId)
+    
+    try {
+      await deleteCourtPeakSchedule(court.id, peakScheduleId)
+      
+      // Update local state
+      const currentPeakSchedules = settings.peakSchedules || []
+      const updatedPeakSchedules = currentPeakSchedules.filter(p => p.id !== peakScheduleId)
+      const updatedSettings = { ...settings, peakSchedules: updatedPeakSchedules }
+      setSettings(updatedSettings)
+      onSettingsUpdate?.(court.id, updatedSettings)
+
+      addToast({
+        type: "success",
+        title: "Success",
+        description: "Peak schedule deleted successfully",
+      })
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete peak schedule"
+      addToast({
+        type: "error",
+        title: "Error",
+        description: errorMessage,
+      })
+    } finally {
+      setDeletingPeakScheduleId(null)
+    }
+  }
+
   const getDayName = (dayOfWeek: number): string => {
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     return days[dayOfWeek] || "Unknown"
@@ -345,6 +468,21 @@ export function CourtSettingsModal({
       minute: '2-digit' 
     })
   }
+
+  // Group peak schedules by day for better organization
+  const groupedPeakSchedules = (settings?.peakSchedules || []).reduce((acc, schedule) => {
+    const dayName = getDayName(schedule.dayOfWeek)
+    if (!acc[dayName]) {
+      acc[dayName] = []
+    }
+    acc[dayName].push(schedule)
+    return acc
+  }, {} as Record<string, PeakSchedule[]>)
+
+  // Sort schedules within each day by start time
+  Object.keys(groupedPeakSchedules).forEach(day => {
+    groupedPeakSchedules[day].sort((a, b) => a.startTime.localeCompare(b.startTime))
+  })
 
   if (!court) return null
 
@@ -581,45 +719,94 @@ export function CourtSettingsModal({
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-5 w-5" />
                       Peak Pricing Schedules
+                      <span className="text-sm font-normal text-gray-500">
+                        ({settings?.peakSchedules?.length || 0} items)
+                      </span>
                     </div>
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Peak Schedule
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={loadCourtSettings}
+                        disabled={loading}
+                      >
+                        {loading ? "Loading..." : "Refresh"}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={handleAddPeakSchedule}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Peak Schedule
+                      </Button>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {settings?.peakSchedules && settings.peakSchedules.length > 0 ? (
+                  {settings?.peakSchedules && Array.isArray(settings.peakSchedules) && settings.peakSchedules.length > 0 ? (
                     <ScrollArea className="h-64">
-                      <div className="space-y-3">
-                        {settings.peakSchedules.map((schedule) => (
-                          <div
-                            key={schedule.id}
-                            className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-700"
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline">
-                                  {getDayName(schedule.dayOfWeek)}
-                                </Badge>
-                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                                  PKR {schedule.price.toLocaleString()}
-                                </Badge>
-                              </div>
-                              <div className="text-sm text-gray-600 dark:text-gray-400">
-                                {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                      <div className="space-y-4">
+                        {Object.keys(groupedPeakSchedules).length > 0 ? (
+                          Object.entries(groupedPeakSchedules).map(([dayName, schedules]) => (
+                            <div key={dayName} className="space-y-2">
+                              <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                {dayName}
+                                <span className="text-sm font-normal text-gray-500">
+                                  ({schedules.length} schedule{schedules.length !== 1 ? 's' : ''})
+                                </span>
+                              </h4>
+                              <div className="space-y-2 ml-6">
+                                {schedules.map((schedule) => (
+                                  <div
+                                    key={schedule.id}
+                                    className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-gray-700"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                          PKR {schedule.price.toLocaleString()}
+                                        </Badge>
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => handleEditPeakSchedule(schedule)}
+                                        disabled={peakScheduleLoading}
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        onClick={() => handleDeletePeakSchedule(schedule.id)}
+                                        disabled={deletingPeakScheduleId === schedule.id}
+                                      >
+                                        {deletingPeakScheduleId === schedule.id ? (
+                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                                        ) : (
+                                          <Trash2 className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Button size="sm" variant="outline">
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                              <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>No peak pricing schedules organized</p>
                           </div>
-                        ))}
+                        )}
                       </div>
                     </ScrollArea>
                   ) : (
@@ -655,6 +842,20 @@ export function CourtSettingsModal({
         unavailability={editingUnavailability}
         isEditing={!!editingUnavailability}
         loading={unavailabilityLoading}
+      />
+
+      {/* Peak Schedule Form Modal */}
+      <PeakScheduleForm
+        isOpen={peakScheduleFormOpen}
+        onClose={() => {
+          setPeakScheduleFormOpen(false)
+          setEditingPeakSchedule(null)
+        }}
+        onSubmit={handlePeakScheduleSubmit}
+        peakSchedule={editingPeakSchedule}
+        isEditing={!!editingPeakSchedule}
+        loading={peakScheduleLoading}
+        existingSchedules={settings?.peakSchedules || []}
       />
     </Dialog>
   )
