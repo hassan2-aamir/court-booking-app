@@ -62,7 +62,7 @@
   - Implement proper error handling and TypeScript types
   - _Requirements: 1.1, 2.1, 3.1, 5.3_
 
-- [ ] 6. Create court context menu component
+- [x] 6. Create court context menu component
 
 
 
@@ -113,7 +113,7 @@
   - Handle recurring unavailabilities with proper UI indicators
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 2.8_
 
-- [ ] 10. Create peak schedules management section
+- [x] 10. Create peak schedules management section
 
 
 
@@ -127,7 +127,15 @@
   - Implement validation to prevent overlapping time slots
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6, 3.7_
 
-- [ ] 11. Integrate settings modal with courts content component
+- [x] 11. Integrate settings modal with courts content component
+
+
+
+
+
+
+
+
   - Add right-click event handling to court cards
   - Connect context menu to settings modal opening
   - Implement settings data loading when modal opens
@@ -135,6 +143,10 @@
   - _Requirements: 1.1, 1.2, 5.1, 5.2_
 
 - [ ] 12. Implement form validation and error handling
+
+
+
+
   - Add client-side validation for all form inputs
   - Implement proper error display for validation failures
   - Handle API errors with user-friendly messages

@@ -187,11 +187,26 @@ useEffect(() => {
     setOpenContextMenus({})
     setSettingsCourt(court)
     setIsSettingsModalOpen(true)
+    
+    // Log for debugging
+    console.log("Opening settings modal for court:", court.name)
   }
 
   const handleSettingsUpdate = (courtId: string, settings: CourtSettings) => {
-    // Update the court in the local state if needed
-    // For now, we'll just log the update
+    // Update the court in the local state with the new settings
+    setCourts(prevCourts => 
+      prevCourts.map(court => 
+        court.id === courtId 
+          ? { 
+              ...court, 
+              advancedBookingLimit: settings.advancedBookingLimit,
+              // Store settings data for potential future use
+              settings: settings
+            }
+          : court
+      )
+    )
+    
     console.log("Settings updated for court:", courtId, settings)
   }
 

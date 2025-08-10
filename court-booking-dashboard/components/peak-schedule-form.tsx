@@ -98,11 +98,26 @@ export function PeakScheduleForm({
       if (startTime >= endTime) {
         newErrors.endTime = "End time must be after start time"
       }
+      
+      // Check for minimum duration (15 minutes)
+      const diffMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60)
+      if (diffMinutes < 15) {
+        newErrors.endTime = "Peak schedule must be at least 15 minutes long"
+      }
+      
+      // Check for maximum duration (24 hours)
+      if (diffMinutes > 1440) {
+        newErrors.endTime = "Peak schedule cannot exceed 24 hours"
+      }
     }
 
     // Validate price
-    if (formData.price <= 0) {
+    if (isNaN(formData.price) || formData.price <= 0) {
       newErrors.price = "Price must be greater than 0"
+    } else if (formData.price > 100000) {
+      newErrors.price = "Price cannot exceed PKR 100,000"
+    } else if (formData.price < 1) {
+      newErrors.price = "Price must be at least PKR 1"
     }
 
     // Check for overlapping schedules
@@ -128,7 +143,8 @@ export function PeakScheduleForm({
       })
 
       if (hasOverlap) {
-        newErrors.timeOverlap = "This time slot overlaps with an existing peak schedule for the same day"
+        const dayName = DAYS_OF_WEEK.find(d => d.value === formData.dayOfWeek)?.label || "selected day"
+        newErrors.timeOverlap = `This time slot overlaps with an existing peak schedule for ${dayName}`
       }
     }
 
@@ -140,6 +156,14 @@ export function PeakScheduleForm({
     e.preventDefault()
     
     if (!validateForm()) {
+      // Focus on the first error field
+      const firstErrorField = Object.keys(errors)[0]
+      if (firstErrorField) {
+        const element = document.getElementById(firstErrorField)
+        if (element) {
+          element.focus()
+        }
+      }
       return
     }
 
@@ -199,13 +223,16 @@ export function PeakScheduleForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Day of Week Selection */}
           <div className="space-y-2">
-            <Label htmlFor="dayOfWeek">Day of Week</Label>
+            <Label htmlFor="dayOfWeek">Day of Week *</Label>
             <Select
               value={formData.dayOfWeek.toString()}
               onValueChange={(value) => handleInputChange('dayOfWeek', parseInt(value))}
             >
-              <SelectTrigger className={errors.dayOfWeek ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select day" />
+              <SelectTrigger 
+                id="dayOfWeek"
+                className={errors.dayOfWeek ? "border-red-500" : ""}
+              >
+                <SelectValue placeholder="Select day of the week" />
               </SelectTrigger>
               <SelectContent>
                 {DAYS_OF_WEEK.map((day) => (
@@ -223,53 +250,58 @@ export function PeakScheduleForm({
             )}
           </div>
 
-          {/* Start Time */}
-          <div className="space-y-2">
-            <Label htmlFor="startTime">Start Time</Label>
-            <Input
-              id="startTime"
-              type="time"
-              value={formData.startTime}
-              onChange={(e) => handleInputChange('startTime', e.target.value)}
-              className={errors.startTime ? "border-red-500" : ""}
-            />
-            {errors.startTime && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.startTime}
-              </div>
-            )}
-          </div>
-
-          {/* End Time */}
-          <div className="space-y-2">
-            <Label htmlFor="endTime">End Time</Label>
-            <Input
-              id="endTime"
-              type="time"
-              value={formData.endTime}
-              onChange={(e) => handleInputChange('endTime', e.target.value)}
-              className={errors.endTime ? "border-red-500" : ""}
-            />
-            {errors.endTime && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.endTime}
-              </div>
-            )}
+          {/* Time Selection */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startTime">Start Time *</Label>
+              <Input
+                id="startTime"
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => handleInputChange('startTime', e.target.value)}
+                className={errors.startTime ? "border-red-500" : ""}
+              />
+              {errors.startTime && (
+                <div className="flex items-center gap-2 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  {errors.startTime}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endTime">End Time *</Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => handleInputChange('endTime', e.target.value)}
+                className={errors.endTime ? "border-red-500" : ""}
+              />
+              {errors.endTime && (
+                <div className="flex items-center gap-2 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  {errors.endTime}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Price */}
           <div className="space-y-2">
-            <Label htmlFor="price">Price (PKR)</Label>
+            <Label htmlFor="price">Price (PKR) *</Label>
             <Input
               id="price"
               type="number"
-              min="0"
-              step="0.01"
-              value={formData.price}
-              onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-              placeholder="0.00"
+              min="1"
+              max="100000"
+              step="1"
+              value={formData.price || ""}
+              onChange={(e) => {
+                const value = e.target.value
+                const numValue = value === "" ? 0 : parseFloat(value)
+                handleInputChange('price', numValue)
+              }}
+              placeholder="Enter price in PKR"
               className={errors.price ? "border-red-500" : ""}
             />
             {errors.price && (
@@ -278,6 +310,9 @@ export function PeakScheduleForm({
                 {errors.price}
               </div>
             )}
+            <div className="text-xs text-gray-500">
+              Enter the peak price for this time slot (PKR 1 - 100,000)
+            </div>
           </div>
 
           {/* Time Overlap Error */}

@@ -9,6 +9,7 @@ export interface Court extends CourtResponseDto {
   availableDays?: string[];
   slotDuration?: number;
   maxBookingsPerUserPerDay?: number;
+  settings?: CourtSettings;
 }
 
 // Court Settings Types (Frontend normalized format)
@@ -184,59 +185,119 @@ export async function getAvailableSlots(courtId: string, date: string): Promise<
 
 // Court Settings API Functions
 
-export async function getCourtSettings(courtId: string): Promise<CourtSettings> {
-  const res = await fetch(`${API_BASE}/${courtId}/settings`, {
-    headers: {
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+// Enhanced error handling utility
+function handleApiError(res: Response, defaultMessage: string): Promise<never> {
+  return res.text().then(errorText => {
+    let errorMessage = defaultMessage;
+    
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.message) {
+        if (Array.isArray(errorData.message)) {
+          errorMessage = errorData.message.join(', ');
+        } else {
+          errorMessage = errorData.message;
+        }
+      } else if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    } catch {
+      // If parsing fails, use the raw text or default message
+      errorMessage = errorText || defaultMessage;
     }
+    
+    // Handle specific HTTP status codes
+    if (res.status === 401) {
+      errorMessage = "Authentication required. Please log in again.";
+    } else if (res.status === 403) {
+      errorMessage = "You don't have permission to perform this action.";
+    } else if (res.status === 404) {
+      errorMessage = "The requested resource was not found.";
+    } else if (res.status === 409) {
+      errorMessage = errorMessage.includes("conflict") ? errorMessage : "A conflict occurred. Please check for overlapping schedules or existing data.";
+    } else if (res.status === 422) {
+      errorMessage = errorMessage.includes("validation") ? errorMessage : "Invalid data provided. Please check your input.";
+    } else if (res.status >= 500) {
+      errorMessage = "Server error occurred. Please try again later.";
+    }
+    
+    throw new Error(errorMessage);
+  }).catch(networkError => {
+    // Handle network errors (no response received)
+    if (networkError instanceof Error && networkError.message.includes("Failed to fetch")) {
+      throw new Error("Network error. Please check your connection and try again.");
+    }
+    throw networkError;
   });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to fetch court settings: ${errorText}`);
+}
+
+export async function getCourtSettings(courtId: string): Promise<CourtSettings> {
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/settings`, {
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      }
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to fetch court settings");
+    }
+    
+    const backendResponse: CourtSettingsResponse = await res.json();
+    
+    // Map the backend response to frontend format, ensuring IDs are properly handled
+    // Backend should now return complete unavailabilities and peak schedules with IDs
+    const normalizedSettings: CourtSettings = {
+      advancedBookingLimit: backendResponse.advancedBookingLimit,
+      unavailabilities: Array.isArray(backendResponse.unavailability) ? 
+        backendResponse.unavailability.map((unavail) => ({
+          id: unavail.id, // Backend should now return this ID
+          courtId: unavail.courtId || backendResponse.courtId,
+          date: unavail.date,
+          startTime: unavail.startTime,
+          endTime: unavail.endTime,
+          reason: unavail.reason,
+          isRecurring: unavail.isRecurring
+        })) : [],
+      peakSchedules: Array.isArray(backendResponse.peakSchedules) ? 
+        backendResponse.peakSchedules.map((schedule) => ({
+          id: schedule.id, // Backend should now return this ID
+          courtId: schedule.courtId || backendResponse.courtId,
+          dayOfWeek: schedule.dayOfWeek,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+          price: schedule.price
+        })) : []
+    };
+    
+    return normalizedSettings;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to fetch court settings");
   }
-  
-  const backendResponse: CourtSettingsResponse = await res.json();
-  
-  // Map the backend response to frontend format, ensuring IDs are properly handled
-  // Backend should now return complete unavailabilities and peak schedules with IDs
-  const normalizedSettings: CourtSettings = {
-    advancedBookingLimit: backendResponse.advancedBookingLimit,
-    unavailabilities: Array.isArray(backendResponse.unavailability) ? 
-      backendResponse.unavailability.map((unavail) => ({
-        id: unavail.id, // Backend should now return this ID
-        courtId: unavail.courtId || backendResponse.courtId,
-        date: unavail.date,
-        startTime: unavail.startTime,
-        endTime: unavail.endTime,
-        reason: unavail.reason,
-        isRecurring: unavail.isRecurring
-      })) : [],
-    peakSchedules: Array.isArray(backendResponse.peakSchedules) ? 
-      backendResponse.peakSchedules.map((schedule) => ({
-        id: schedule.id, // Backend should now return this ID
-        courtId: schedule.courtId || backendResponse.courtId,
-        dayOfWeek: schedule.dayOfWeek,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        price: schedule.price
-      })) : []
-  };
-  
-  return normalizedSettings;
 }
 
 export async function updateAdvancedBookingLimit(courtId: string, limit: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/${courtId}/advanced-booking-limit`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-    body: JSON.stringify({ advancedBookingLimit: limit }),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to update advanced booking limit: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/advanced-booking-limit`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+      body: JSON.stringify({ advancedBookingLimit: limit }),
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to update advanced booking limit");
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to update advanced booking limit");
   }
 }
 
@@ -256,47 +317,70 @@ export async function getCourtUnavailabilities(courtId: string): Promise<CourtUn
 }
 
 export async function createCourtUnavailability(courtId: string, data: CreateCourtUnavailabilityDto): Promise<CourtUnavailability> {
-  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to create court unavailability: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/unavailabilities`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to create court unavailability");
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to create court unavailability");
   }
-  return res.json();
 }
 
 export async function updateCourtUnavailability(courtId: string, unavailabilityId: string, data: UpdateCourtUnavailabilityDto): Promise<CourtUnavailability> {
-  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to update court unavailability: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to update court unavailability");
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to update court unavailability");
   }
-  return res.json();
 }
 
 export async function deleteCourtUnavailability(courtId: string, unavailabilityId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
-    method: "DELETE",
-    headers: {
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to delete court unavailability: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/unavailabilities/${unavailabilityId}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to delete court unavailability");
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to delete court unavailability");
   }
 }
 
@@ -316,47 +400,70 @@ export async function getCourtPeakSchedules(courtId: string): Promise<PeakSchedu
 }
 
 export async function createCourtPeakSchedule(courtId: string, data: CreateCourtPeakScheduleDto): Promise<PeakSchedule> {
-  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to create court peak schedule: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/peak-schedules`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to create court peak schedule");
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to create court peak schedule");
   }
-  return res.json();
 }
 
 export async function updateCourtPeakSchedule(courtId: string, scheduleId: string, data: UpdateCourtPeakScheduleDto): Promise<PeakSchedule> {
-  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to update court peak schedule: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to update court peak schedule");
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to update court peak schedule");
   }
-  return res.json();
 }
 
 export async function deleteCourtPeakSchedule(courtId: string, scheduleId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
-    method: "DELETE",
-    headers: {
-      "Authorization": `Bearer ${localStorage.getItem("access_token")}`
-    },
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to delete court peak schedule: ${errorText}`);
+  try {
+    const res = await fetch(`${API_BASE}/${courtId}/peak-schedules/${scheduleId}`, {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+      },
+    });
+    
+    if (!res.ok) {
+      return handleApiError(res, "Failed to delete court peak schedule");
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to delete court peak schedule");
   }
 }
 

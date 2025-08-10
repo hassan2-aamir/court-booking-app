@@ -88,14 +88,30 @@ export function UnavailabilityForm({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
+    // Date validation
     if (!selectedDate) {
       newErrors.date = "Date is required"
+    } else {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const selected = new Date(selectedDate)
+      selected.setHours(0, 0, 0, 0)
+      
+      if (selected < today) {
+        newErrors.date = "Cannot create unavailability for past dates"
+      }
     }
 
+    // Reason validation
     if (!formData.reason.trim()) {
       newErrors.reason = "Reason is required"
+    } else if (formData.reason.trim().length < 3) {
+      newErrors.reason = "Reason must be at least 3 characters long"
+    } else if (formData.reason.trim().length > 200) {
+      newErrors.reason = "Reason cannot exceed 200 characters"
     }
 
+    // Time validation for non-all-day unavailabilities
     if (!isAllDay) {
       if (!formData.startTime) {
         newErrors.startTime = "Start time is required"
@@ -103,8 +119,25 @@ export function UnavailabilityForm({
       if (!formData.endTime) {
         newErrors.endTime = "End time is required"
       }
-      if (formData.startTime && formData.endTime && formData.startTime >= formData.endTime) {
-        newErrors.endTime = "End time must be after start time"
+      
+      if (formData.startTime && formData.endTime) {
+        const startTime = new Date(`2000-01-01T${formData.startTime}`)
+        const endTime = new Date(`2000-01-01T${formData.endTime}`)
+        
+        if (startTime >= endTime) {
+          newErrors.endTime = "End time must be after start time"
+        }
+        
+        // Check for minimum duration (15 minutes)
+        const diffMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60)
+        if (diffMinutes < 15) {
+          newErrors.endTime = "Unavailability must be at least 15 minutes long"
+        }
+        
+        // Check for maximum duration (24 hours)
+        if (diffMinutes > 1440) {
+          newErrors.endTime = "Unavailability cannot exceed 24 hours"
+        }
       }
     }
 
@@ -188,6 +221,14 @@ export function UnavailabilityForm({
     e.preventDefault()
 
     if (!validateForm()) {
+      // Focus on the first error field
+      const firstErrorField = Object.keys(errors)[0]
+      if (firstErrorField) {
+        const element = document.getElementById(firstErrorField)
+        if (element) {
+          element.focus()
+        }
+      }
       return
     }
 
@@ -202,6 +243,7 @@ export function UnavailabilityForm({
       onClose()
     } catch (error) {
       console.error("Form submission error:", error)
+      // Error handling is done in the parent component via toast
     }
   }
 
@@ -294,7 +336,18 @@ export function UnavailabilityForm({
                   id="startTime"
                   type="time"
                   value={formData.startTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, startTime: e.target.value }))
+                    // Clear time-related errors when user changes time
+                    if (errors.startTime || errors.endTime) {
+                      setErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors.startTime
+                        delete newErrors.endTime
+                        return newErrors
+                      })
+                    }
+                  }}
                   className={errors.startTime ? "border-red-500" : ""}
                 />
                 {errors.startTime && (
@@ -310,7 +363,18 @@ export function UnavailabilityForm({
                   id="endTime"
                   type="time"
                   value={formData.endTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, endTime: e.target.value }))
+                    // Clear time-related errors when user changes time
+                    if (errors.startTime || errors.endTime) {
+                      setErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors.startTime
+                        delete newErrors.endTime
+                        return newErrors
+                      })
+                    }
+                  }}
                   className={errors.endTime ? "border-red-500" : ""}
                 />
                 {errors.endTime && (
@@ -330,16 +394,35 @@ export function UnavailabilityForm({
               id="reason"
               placeholder="Enter reason for unavailability..."
               value={formData.reason}
-              onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value
+                setFormData(prev => ({ ...prev, reason: value }))
+                // Clear error when user starts typing
+                if (errors.reason) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.reason
+                    return newErrors
+                  })
+                }
+              }}
               className={errors.reason ? "border-red-500" : ""}
               rows={3}
+              maxLength={200}
             />
-            {errors.reason && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.reason}
+            <div className="flex justify-between items-center">
+              {errors.reason ? (
+                <div className="flex items-center gap-2 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  {errors.reason}
+                </div>
+              ) : (
+                <div></div>
+              )}
+              <div className="text-xs text-gray-500">
+                {formData.reason.length}/200
               </div>
-            )}
+            </div>
           </div>
 
           {/* Recurring Checkbox */}

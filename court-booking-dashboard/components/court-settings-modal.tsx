@@ -149,17 +149,23 @@ export function CourtSettingsModal({
   }
 
   const validateBookingLimit = (value: number): string | null => {
-    if (isNaN(value) || value < 1) {
+    if (isNaN(value)) {
+      return "Please enter a valid number"
+    }
+    if (value < 1) {
       return "Booking limit must be at least 1 day"
     }
     if (value > 365) {
       return "Booking limit cannot exceed 365 days"
     }
+    if (!Number.isInteger(value)) {
+      return "Booking limit must be a whole number"
+    }
     return null
   }
 
   const handleBookingLimitChange = (value: string) => {
-    const numValue = Number(value)
+    const numValue = value === "" ? 0 : Number(value)
     setBookingLimitForm({
       ...bookingLimitForm,
       advancedBookingLimit: numValue
@@ -173,6 +179,14 @@ export function CourtSettingsModal({
     // Clear error when user starts typing
     if (bookingLimitError) {
       setBookingLimitError(null)
+    }
+    
+    // Real-time validation feedback
+    if (value !== "" && numValue > 0) {
+      const validationError = validateBookingLimit(numValue)
+      if (validationError) {
+        setBookingLimitError(validationError)
+      }
     }
   }
 
@@ -276,8 +290,8 @@ export function CourtSettingsModal({
 
         addToast({
           type: "success",
-          title: "Success",
-          description: "Unavailability updated successfully",
+          title: "Unavailability Updated",
+          description: "The unavailability has been updated successfully",
         })
       } else {
         // Create new unavailability
@@ -294,18 +308,31 @@ export function CourtSettingsModal({
 
         addToast({
           type: "success",
-          title: "Success",
-          description: "Unavailability created successfully",
+          title: "Unavailability Created",
+          description: "The unavailability has been created successfully",
         })
       }
 
       setUnavailabilityFormOpen(false)
       setEditingUnavailability(null)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to save unavailability"
+      let errorMessage = "Failed to save unavailability"
+      
+      if (err instanceof Error) {
+        errorMessage = err.message
+        // Handle specific error cases
+        if (errorMessage.includes("overlap") || errorMessage.includes("conflict")) {
+          errorMessage = "This unavailability conflicts with existing bookings or schedules"
+        } else if (errorMessage.includes("validation")) {
+          errorMessage = "Please check your input and try again"
+        } else if (errorMessage.includes("unauthorized")) {
+          errorMessage = "You don't have permission to modify this court's settings"
+        }
+      }
+      
       addToast({
         type: "error",
-        title: "Error",
+        title: editingUnavailability ? "Update Failed" : "Creation Failed",
         description: errorMessage,
       })
     } finally {
@@ -383,8 +410,8 @@ export function CourtSettingsModal({
 
         addToast({
           type: "success",
-          title: "Success",
-          description: "Peak schedule updated successfully",
+          title: "Peak Schedule Updated",
+          description: "The peak schedule has been updated successfully",
         })
       } else {
         // Create new peak schedule
@@ -402,18 +429,31 @@ export function CourtSettingsModal({
 
         addToast({
           type: "success",
-          title: "Success",
-          description: "Peak schedule created successfully",
+          title: "Peak Schedule Created",
+          description: "The peak schedule has been created successfully",
         })
       }
 
       setPeakScheduleFormOpen(false)
       setEditingPeakSchedule(null)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to save peak schedule"
+      let errorMessage = "Failed to save peak schedule"
+      
+      if (err instanceof Error) {
+        errorMessage = err.message
+        // Handle specific error cases
+        if (errorMessage.includes("overlap") || errorMessage.includes("conflict")) {
+          errorMessage = "This time slot overlaps with an existing peak schedule"
+        } else if (errorMessage.includes("validation")) {
+          errorMessage = "Please check your input and try again"
+        } else if (errorMessage.includes("unauthorized")) {
+          errorMessage = "You don't have permission to modify this court's settings"
+        }
+      }
+      
       addToast({
         type: "error",
-        title: "Error",
+        title: editingPeakSchedule ? "Update Failed" : "Creation Failed",
         description: errorMessage,
       })
     } finally {
@@ -567,10 +607,12 @@ export function CourtSettingsModal({
                         type="number"
                         min="1"
                         max="365"
-                        value={bookingLimitForm.advancedBookingLimit}
+                        step="1"
+                        value={bookingLimitForm.advancedBookingLimit || ""}
                         onChange={(e) => handleBookingLimitChange(e.target.value)}
-                        placeholder="30"
+                        placeholder="Enter days (1-365)"
                         className={bookingLimitError ? "border-red-500 focus:border-red-500" : ""}
+                        disabled={saving}
                       />
                       {bookingLimitError && (
                         <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
