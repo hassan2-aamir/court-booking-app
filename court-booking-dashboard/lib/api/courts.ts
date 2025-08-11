@@ -173,7 +173,7 @@ export async function getAvailabilityToday(id: string): Promise<CourtAvailabilit
   return res.json();
 }
 
-export async function getAvailableSlots(courtId: string, date: string): Promise<{ startTime: string; endTime: string; isAvailable: boolean }[]> {
+export async function getAvailableSlots(courtId: string, date: string): Promise<{ startTime: string; endTime: string; isAvailable: boolean; price?: number; isPeakTime?: boolean }[]> {
   const res = await fetch(`${API_BASE}/${courtId}/available-slots/${date}`, {
     headers: {
       "Authorization": `Bearer ${localStorage.getItem("access_token")}`

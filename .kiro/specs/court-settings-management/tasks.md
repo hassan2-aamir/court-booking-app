@@ -191,6 +191,11 @@
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
 - [ ] 15. Implement booking system integration with new settings
+
+
+
+
+
   - Update booking validation to respect advanced booking limits
   - Integrate unavailabilities into booking availability checks
   - Apply peak pricing during booking calculations

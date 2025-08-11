@@ -39,3 +39,15 @@ export function validateCNIC(cnic: string): boolean {
   const cnicRegex = /^\d{5}-\d{7}-\d{1}$/
   return cnicRegex.test(cnic)
 }
+
+/**
+ * Format a Date object as YYYY-MM-DD string without timezone issues
+ * This function uses local date components to avoid timezone conversion problems
+ * that can occur with toISOString().split('T')[0]
+ */
+export function formatDateForAPI(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}

@@ -13,7 +13,7 @@ import { CourtResponseDto } from './dto/court-response.dto';
 
 @Injectable()
 export class CourtsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   create(createCourtDto: CreateCourtDto) {
     // Assuming you have injected PrismaService and your model is named 'court'
@@ -25,18 +25,18 @@ export class CourtsService {
         advancedBookingLimit: createCourtDto.advancedBookingLimit ?? 30,
         availability: availability
           ? {
-              create: availability,
-            }
+            create: availability,
+          }
           : undefined,
         unavailability: unavailability
           ? {
-              create: unavailability,
-            }
+            create: unavailability,
+          }
           : undefined,
         peakSchedules: peakSchedules
           ? {
-              create: peakSchedules,
-            }
+            create: peakSchedules,
+          }
           : undefined,
       },
     });
@@ -55,10 +55,10 @@ export class CourtsService {
           isActive: court.isActive,
           availability: court.availability && court.availability.length > 0
             ? court.availability.map((a: any) => ({
-                startTime: a.startTime,
-                endTime: a.endTime,
-                dayOfWeek: a.dayOfWeek,
-              }))
+              startTime: a.startTime,
+              endTime: a.endTime,
+              dayOfWeek: a.dayOfWeek,
+            }))
             : [],
           pricePerHour: court.pricePerHour,
           type: court.type,
@@ -67,56 +67,56 @@ export class CourtsService {
     );
   }
 
-  findOne(id: string):Promise<CourtResponseDto | null> {
+  findOne(id: string): Promise<CourtResponseDto | null> {
     return this.prisma.court.findUnique({
       where: { id },
       include: { availability: true },
     }).then(court => {
       if (!court) return null;
       return new (CourtResponseDto)({
-      id: court.id,
-      name: court.name,
-      isActive: court.isActive,
-      availability: court.availability && court.availability.length > 0
-        ? court.availability.map((a: any) => ({
-          startTime: a.startTime,
-          endTime: a.endTime,
-          dayOfWeek: a.dayOfWeek,
-        }))
-        : [],
-      pricePerHour: court.pricePerHour,
-      type: court.type,
+        id: court.id,
+        name: court.name,
+        isActive: court.isActive,
+        availability: court.availability && court.availability.length > 0
+          ? court.availability.map((a: any) => ({
+            startTime: a.startTime,
+            endTime: a.endTime,
+            dayOfWeek: a.dayOfWeek,
+          }))
+          : [],
+        pricePerHour: court.pricePerHour,
+        type: court.type,
       });
     });
   }
 
   update(id: string, updateCourtDto: UpdateCourtDto) {
     const { availability, unavailability, peakSchedules, ...courtData } = updateCourtDto as any;
-    
+
     return this.prisma.court.update({
       where: { id },
       data: {
         ...courtData,
         availability: availability
           ? {
-              // Delete existing availability and create new ones
-              deleteMany: {},
-              create: availability,
-            }
+            // Delete existing availability and create new ones
+            deleteMany: {},
+            create: availability,
+          }
           : undefined,
         unavailability: unavailability
           ? {
-              // Delete existing unavailability and create new ones
-              deleteMany: {},
-              create: unavailability,
-            }
+            // Delete existing unavailability and create new ones
+            deleteMany: {},
+            create: unavailability,
+          }
           : undefined,
         peakSchedules: peakSchedules
           ? {
-              // Delete existing peak schedules and create new ones
-              deleteMany: {},
-              create: peakSchedules,
-            }
+            // Delete existing peak schedules and create new ones
+            deleteMany: {},
+            create: peakSchedules,
+          }
           : undefined,
       },
     });
@@ -146,16 +146,20 @@ export class CourtsService {
     })
   }
 
-  async getAvailableSlots(courtId: string, date: string): Promise<{ startTime: string; endTime: string; isAvailable: boolean }[]> {
+  async getAvailableSlots(courtId: string, date: string): Promise<{ startTime: string; endTime: string; isAvailable: boolean; price?: number; isPeakTime?: boolean }[]> {
     // Parse the date
     const selectedDate = new Date(date);
     const dayOfWeek = selectedDate.getDay();
 
-    // Get court with availability
+    // Get court with availability, unavailabilities, and peak schedules
     const court = await this.prisma.court.findUnique({
       where: { id: courtId },
       include: {
         availability: {
+          where: { dayOfWeek }
+        },
+        unavailability: true,
+        peakSchedules: {
           where: { dayOfWeek }
         }
       }
@@ -165,10 +169,23 @@ export class CourtsService {
       return [];
     }
 
+    // Check advanced booking limit
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxBookingDate = new Date(today);
+    maxBookingDate.setDate(maxBookingDate.getDate() + court.advancedBookingLimit);
+
+    const selectedDateOnly = new Date(selectedDate);
+    selectedDateOnly.setHours(0, 0, 0, 0);
+
+    if (selectedDateOnly > maxBookingDate) {
+      return []; // Date is beyond booking limit
+    }
+
     // Get all bookings for this court on the selected date
     const startOfDay = new Date(selectedDate);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(selectedDate);
     endOfDay.setHours(23, 59, 59, 999);
 
@@ -189,10 +206,28 @@ export class CourtsService {
       }
     });
 
+    // Check for court unavailabilities on this date
+    const unavailabilities = court.unavailability.filter(unavail => {
+      const unavailDate = new Date(unavail.date);
+      unavailDate.setHours(0, 0, 0, 0);
+
+      // Check exact date match
+      if (unavailDate.getTime() === selectedDateOnly.getTime()) {
+        return true;
+      }
+
+      // Check recurring unavailabilities
+      if (unavail.isRecurring && unavailDate.getDay() === dayOfWeek) {
+        return true;
+      }
+
+      return false;
+    });
+
     // Generate all possible time slots
-    const slots: { startTime: string; endTime: string; isAvailable: boolean }[] = [];
+    const slots: { startTime: string; endTime: string; isAvailable: boolean; price?: number; isPeakTime?: boolean }[] = [];
     const dayAvailability = court.availability[0];
-    
+
     if (!dayAvailability || !dayAvailability.startTime || !dayAvailability.endTime) {
       return slots;
     }
@@ -200,18 +235,18 @@ export class CourtsService {
     const slotDuration = dayAvailability.slotDuration || 60; // minutes
     const [startHour, startMinute] = dayAvailability.startTime.split(':').map(Number);
     const [endHour, endMinute] = dayAvailability.endTime.split(':').map(Number);
-    
+
     let currentHour = startHour;
     let currentMinute = startMinute;
-    
+
     while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
       const nextHour = currentHour + Math.floor((currentMinute + slotDuration) / 60);
       const nextMinute = (currentMinute + slotDuration) % 60;
-      
+
       if (nextHour < endHour || (nextHour === endHour && nextMinute <= endMinute)) {
         const slotStart = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
         const slotEnd = `${nextHour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`;
-        
+
         // Check if this slot conflicts with any booking
         const isBooked = bookings.some(booking => {
           return (
@@ -220,18 +255,41 @@ export class CourtsService {
             (slotStart <= booking.startTime && slotEnd >= booking.endTime)
           );
         });
-        
+
+        // Check if this slot conflicts with any unavailability
+        const isUnavailable = unavailabilities.some(unavail => {
+          // If no specific times, entire day is unavailable
+          if (!unavail.startTime || !unavail.endTime) {
+            return true;
+          }
+
+          // Check time overlap
+          return this.hasTimeOverlap(slotStart, slotEnd, unavail.startTime, unavail.endTime);
+        });
+
+        // Check for peak pricing
+        const applicablePeakSchedule = court.peakSchedules.find(peak =>
+          this.hasTimeOverlap(slotStart, slotEnd, peak.startTime, peak.endTime)
+        );
+
+        const isPeakTime = !!applicablePeakSchedule;
+        const price = isPeakTime
+          ? Math.max(applicablePeakSchedule.price, court.pricePerHour)
+          : court.pricePerHour;
+
         slots.push({
           startTime: slotStart,
           endTime: slotEnd,
-          isAvailable: !isBooked
+          isAvailable: !isBooked && !isUnavailable,
+          price,
+          isPeakTime
         });
       }
-      
+
       currentHour = nextHour;
       currentMinute = nextMinute;
     }
-    
+
     return slots;
   }
 

@@ -170,6 +170,7 @@ describe('CourtsService', () => {
         unavailability: [
           {
             id: 'unavail-1',
+            courtId: 'court-1',
             startTime: '09:00',
             endTime: '10:00',
             date: new Date('2024-01-01'),
@@ -180,6 +181,7 @@ describe('CourtsService', () => {
         peakSchedules: [
           {
             id: 'peak-1',
+            courtId: 'court-1',
             startTime: '18:00',
             endTime: '20:00',
             dayOfWeek: 1,
@@ -197,6 +199,8 @@ describe('CourtsService', () => {
         advancedBookingLimit: 30,
         unavailability: [
           {
+            id: 'unavail-1',
+            courtId: 'court-1',
             startTime: '09:00',
             endTime: '10:00',
             date: '2024-01-01T00:00:00.000Z',
@@ -206,6 +210,8 @@ describe('CourtsService', () => {
         ],
         peakSchedules: [
           {
+            id: 'peak-1',
+            courtId: 'court-1',
             startTime: '18:00',
             endTime: '20:00',
             dayOfWeek: 1,
@@ -251,6 +257,7 @@ describe('CourtsService', () => {
         unavailability: [
           {
             id: 'unavail-1',
+            courtId: 'court-1',
             startTime: null,
             endTime: null,
             date: new Date('2024-01-01'),
@@ -270,6 +277,8 @@ describe('CourtsService', () => {
         advancedBookingLimit: 30,
         unavailability: [
           {
+            id: 'unavail-1',
+            courtId: 'court-1',
             startTime: undefined,
             endTime: undefined,
             date: '2024-01-01T00:00:00.000Z',

@@ -28,6 +28,7 @@ import {
 import { format } from "date-fns"
 import * as bookingsApi from "@/lib/api/bookings"
 import * as usersApi from "@/lib/api/users"
+import { formatDateForAPI } from "@/lib/utils"
 import * as courtsApi from "@/lib/api/courts"
 
 // Type aliases for clarity
@@ -40,6 +41,7 @@ interface TimeSlot {
   endTime: string
   price: number
   status: "Available" | "Booked" | "Blocked"
+  isPeakTime?: boolean
 }
 
 interface AddBookingModalProps {
@@ -218,7 +220,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       setSelectedDate(bookingDate)
       setFormData(prev => ({ 
         ...prev, 
-        date: bookingDate.toISOString().split('T')[0]
+        date: formatDateForAPI(bookingDate)
       }))
 
       // Set duration (convert from minutes to hours)
@@ -306,11 +308,12 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
     const slots: TimeSlot[] = []
     
     try {
-      // Format date as YYYY-MM-DD for the API
-      const dateStr = date.toISOString().split('T')[0]
+      // Format date as YYYY-MM-DD for the API (using local timezone to avoid date shifting)
+      const dateStr = formatDateForAPI(date)
       
       // Fetch available slots from backend
       const availableSlots = await courtsApi.getAvailableSlots(court.id, dateStr)
+      console.log('Available slots from API:', availableSlots) // Debug log to verify API response
       
       // Convert backend slots to frontend TimeSlot format
       availableSlots.forEach((slot, index) => {
@@ -318,11 +321,13 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           id: `slot-${index + 1}`,
           startTime: slot.startTime,
           endTime: slot.endTime,
-          price: court.pricePerHour,
-          status: slot.isAvailable ? "Available" : "Booked"
+          price: slot.price || court.pricePerHour, // Use API price if available, fallback to court price
+          status: slot.isAvailable ? "Available" : "Booked",
+          isPeakTime: slot.isPeakTime || false // Include peak time information
         })
       })
       
+      console.log('Processed slots for frontend:', slots) // Debug log to verify slot processing
       return slots
     } catch (error) {
       console.error('Failed to fetch available slots:', error)
@@ -426,7 +431,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         const bookingData: bookingsApi.UpdateBookingDto = {
           userId: formData.customer.id || booking.userId,
           courtId: selectedCourt.id,
-          date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          date: formatDateForAPI(selectedDate), // YYYY-MM-DD format
           startTime: selectedSlot.startTime,
           endTime: selectedSlot.endTime,
           duration: duration * 60, // Convert to minutes
@@ -478,7 +483,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           bookingId: bookingsApi.generateBookingId(),
           userId: customerId,
           courtId: selectedCourt.id,
-          date: selectedDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          date: formatDateForAPI(selectedDate), // YYYY-MM-DD format
           startTime: selectedSlot.startTime,
           endTime: selectedSlot.endTime,
           duration: durationMinutes,
@@ -781,16 +786,23 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                         <Button
                           key={slot.id}
                           variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                          className={`p-3 h-auto flex flex-col items-start ${
+                          className={`p-3 h-auto flex flex-col items-start relative ${
                             slot.status === "Available"
                               ? selectedSlot?.id === slot.id
                                 ? "bg-blue-600 text-white"
+                                : slot.isPeakTime
+                                ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
                                 : "hover:bg-blue-50 bg-transparent"
                               : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
                           }`}
                           disabled={slot.status !== "Available"}
                           onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
                         >
+                          {slot.isPeakTime && (
+                            <Badge className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1 py-0">
+                              Peak
+                            </Badge>
+                          )}
                           <div className="font-medium">
                             {slot.startTime} - {slot.endTime}
                           </div>
@@ -799,6 +811,9 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                               ? `PKR ${(slot.price * duration).toLocaleString()}`
                               : "Booked"
                             }
+                            {slot.isPeakTime && slot.status === "Available" && (
+                              <span className="text-orange-600 font-medium ml-1">(Peak)</span>
+                            )}
                           </div>
                         </Button>
                       ))
