@@ -64,7 +64,6 @@ interface BookingFormData {
   courtId: string
   date: string
   startTime: string
-  duration: number
   paymentMethod: string
   notes: string
 }
@@ -88,7 +87,6 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
-  const [duration, setDuration] = useState(1)
   const [createdBooking, setCreatedBooking] = useState<bookingsApi.Booking | null>(null)
   const [courtTypeFilter, setCourtTypeFilter] = useState("all")
   const [localCourts, setLocalCourts] = useState<courtsApi.Court[]>([])
@@ -106,7 +104,6 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
     courtId: "",
     date: "",
     startTime: "",
-    duration: 1,
     paymentMethod: "Cash",
     notes: "",
   })
@@ -128,7 +125,6 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         courtId: "",
         date: "",
         startTime: "",
-        duration: 1,
         paymentMethod: "Cash",
         notes: "",
       })
@@ -136,12 +132,12 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       // Check if we're in edit mode
       const editMode = !!booking
       setIsEditMode(editMode)
-      
+
       // Debug: Check courts data when modal opens
       console.log('Courts passed to AddBookingModal:', courts)
       console.log('Number of courts:', courts?.length || 0)
       console.log('Active courts:', courts?.filter(c => c.isActive)?.length || 0)
-      
+
       // If no courts provided via props, fetch them
       if (!courts || courts.length === 0) {
         setCourtsLoading(true)
@@ -149,7 +145,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           .then((fetchedCourts) => {
             console.log('Fetched courts:', fetchedCourts)
             setLocalCourts(fetchedCourts as courtsApi.Court[])
-            
+
             // If in edit mode and we have booking data, preload it after courts are loaded
             if (editMode && booking) {
               preloadBookingData(booking, fetchedCourts as courtsApi.Court[])
@@ -174,7 +170,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
   const preloadBookingData = (bookingData: bookingsApi.Booking, availableCourts: courtsApi.Court[]) => {
     try {
       console.log('Preloading booking data:', bookingData)
-      
+
       // Set customer data
       if (bookingData.user) {
         const customer = bookingData.user
@@ -191,7 +187,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
-        
+
         setSelectedCustomer(compatibleCustomer)
         setFormData(prev => ({
           ...prev,
@@ -214,26 +210,21 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       }
 
       // Set date
-      const bookingDate = typeof bookingData.date === 'string' 
-        ? new Date(bookingData.date) 
+      const bookingDate = typeof bookingData.date === 'string'
+        ? new Date(bookingData.date)
         : bookingData.date
       setSelectedDate(bookingDate)
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         date: formatDateForAPI(bookingDate)
       }))
-
-      // Set duration (convert from minutes to hours)
-      const durationHours = bookingsApi.getBookingDurationHours(bookingData.duration)
-      setDuration(durationHours)
-      setFormData(prev => ({ ...prev, duration: durationHours }))
 
       // Set time slot
       const timeSlot: TimeSlot = {
         id: `edit-slot-${bookingData.id}`,
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
-        price: bookingData.totalPrice / durationHours, // Calculate price per hour
+        price: bookingData.totalPrice, // Use total price directly
         status: "Available"
       }
       setSelectedSlot(timeSlot)
@@ -306,15 +297,15 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
   // Generate available time slots based on court availability and existing bookings
   const generateTimeSlots = async (court: courtsApi.Court, date: Date): Promise<TimeSlot[]> => {
     const slots: TimeSlot[] = []
-    
+
     try {
       // Format date as YYYY-MM-DD for the API (using local timezone to avoid date shifting)
       const dateStr = formatDateForAPI(date)
-      
+
       // Fetch available slots from backend
       const availableSlots = await courtsApi.getAvailableSlots(court.id, dateStr)
       console.log('Available slots from API:', availableSlots) // Debug log to verify API response
-      
+
       // Convert backend slots to frontend TimeSlot format
       availableSlots.forEach((slot, index) => {
         slots.push({
@@ -326,16 +317,16 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           isPeakTime: slot.isPeakTime || false // Include peak time information
         })
       })
-      
+
       console.log('Processed slots for frontend:', slots) // Debug log to verify slot processing
       return slots
     } catch (error) {
       console.error('Failed to fetch available slots:', error)
-      
+
       // Fallback to generating slots without booking info
       const dateDay = date.getDay()
       const dayAvailability = court.availability?.find(av => av.dayOfWeek === dateDay)
-      
+
       if (!dayAvailability || !dayAvailability.startTime || !dayAvailability.endTime) {
         return slots
       }
@@ -343,22 +334,22 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       const startTime = dayAvailability.startTime
       const endTime = dayAvailability.endTime
       const slotDuration = court.slotDuration || 60
-      
+
       const [startHour, startMinute] = startTime.split(':').map(Number)
       const [endHour, endMinute] = endTime.split(':').map(Number)
-      
+
       let currentHour = startHour
       let currentMinute = startMinute
       let slotId = 1
-      
+
       while (currentHour < endHour || (currentHour === endHour && currentMinute < endMinute)) {
         const nextHour = currentHour + Math.floor((currentMinute + slotDuration) / 60)
         const nextMinute = (currentMinute + slotDuration) % 60
-        
+
         if (nextHour < endHour || (nextHour === endHour && nextMinute <= endMinute)) {
           const slotStart = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
           const slotEnd = `${nextHour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
-          
+
           slots.push({
             id: `slot-${slotId}`,
             startTime: slotStart,
@@ -366,14 +357,14 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
             price: court.pricePerHour,
             status: "Available"
           })
-          
+
           slotId++
         }
-        
+
         currentHour = nextHour
         currentMinute = nextMinute
       }
-      
+
       return slots
     }
   }
@@ -434,7 +425,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           date: formatDateForAPI(selectedDate), // YYYY-MM-DD format
           startTime: selectedSlot.startTime,
           endTime: selectedSlot.endTime,
-          duration: duration * 60, // Convert to minutes
+          duration: selectedCourt.slotDuration || 60,
           totalPrice: calculateTotal(),
           notes: formData.notes || undefined,
           status: booking.status, // Keep existing status
@@ -442,7 +433,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         }
 
         console.log('Updating booking with data:', bookingData)
-        
+
         // Remove undefined values to avoid issues
         const cleanedBookingData = Object.fromEntries(
           Object.entries(bookingData).filter(([_, value]) => value !== undefined)
@@ -456,7 +447,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       } else {
         // Create new booking (existing logic)
         let customerId = formData.customer.id
-        
+
         if (!customerId) {
           // Create new customer
           const newCustomer = await usersApi.createUser({
@@ -469,9 +460,6 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           })
           customerId = newCustomer.id
         }
-
-        // Calculate duration in minutes
-        const durationMinutes = duration * 60
 
         // Validate required data
         if (!customerId || !selectedCourt.id || !selectedDate || !selectedSlot) {
@@ -486,7 +474,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
           date: formatDateForAPI(selectedDate), // YYYY-MM-DD format
           startTime: selectedSlot.startTime,
           endTime: selectedSlot.endTime,
-          duration: durationMinutes,
+          duration: selectedCourt.slotDuration || 60,
           totalPrice: calculateTotal(),
           notes: formData.notes || undefined,
           status: 'PENDING',
@@ -494,7 +482,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         }
 
         console.log('Booking data being sent:', bookingData)
-        
+
         // Remove undefined values to avoid issues
         const cleanedBookingData = Object.fromEntries(
           Object.entries(bookingData).filter(([_, value]) => value !== undefined)
@@ -515,7 +503,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
 
   const calculateTotal = () => {
     if (!selectedCourt || !selectedSlot) return 0
-    return selectedSlot.price * duration
+    return selectedSlot.price
   }
 
   const renderStepContent = () => {
@@ -693,9 +681,8 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                     .map((court) => (
                       <Card
                         key={court.id}
-                        className={`cursor-pointer transition-all ${
-                          selectedCourt?.id === court.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
-                        }`}
+                        className={`cursor-pointer transition-all ${selectedCourt?.id === court.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
+                          }`}
                         onClick={() => {
                           setSelectedCourt(court)
                           setFormData({ ...formData, courtId: court.id })
@@ -761,18 +748,8 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div>
                   <Label>Available Time Slots</Label>
-                  <Select value={duration.toString()} onValueChange={(value) => setDuration(Number(value))}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 hour</SelectItem>
-                      <SelectItem value="1.5">1.5 hours</SelectItem>
-                      <SelectItem value="2">2 hours</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 {selectedDate && (
@@ -786,15 +763,14 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                         <Button
                           key={slot.id}
                           variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                          className={`p-3 h-auto flex flex-col items-start relative ${
-                            slot.status === "Available"
+                          className={`p-3 h-auto flex flex-col items-start relative ${slot.status === "Available"
                               ? selectedSlot?.id === slot.id
                                 ? "bg-blue-600 text-white"
                                 : slot.isPeakTime
-                                ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
-                                : "hover:bg-blue-50 bg-transparent"
+                                  ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
+                                  : "hover:bg-blue-50 bg-transparent"
                               : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
-                          }`}
+                            }`}
                           disabled={slot.status !== "Available"}
                           onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
                         >
@@ -808,7 +784,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                           </div>
                           <div className="text-sm">
                             {slot.status === "Available"
-                              ? `PKR ${(slot.price * duration).toLocaleString()}`
+                              ? `PKR ${slot.price.toLocaleString()}`
                               : "Booked"
                             }
                             {slot.isPeakTime && slot.status === "Available" && (
@@ -830,7 +806,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                     <div>
                       <div className="font-medium">Selected Slot</div>
                       <div className="text-sm text-gray-600 dark:text-gray-300">
-                        {selectedSlot.startTime} - {selectedSlot.endTime} ({duration} hour{duration > 1 ? "s" : ""})
+                        {selectedSlot.startTime} - {selectedSlot.endTime}
                       </div>
                     </div>
                     <div className="text-right">
@@ -871,10 +847,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                     </div>
                   </div>
                   <div>
-                    <span className="text-gray-600 dark:text-gray-300">Duration & Amount:</span>
-                    <div className="font-medium">
-                      {duration} hour{duration > 1 ? "s" : ""}
-                    </div>
+                    <span className="text-gray-600 dark:text-gray-300">Amount:</span>
                     <div className="text-green-600 font-semibold">PKR {calculateTotal().toLocaleString()}</div>
                   </div>
                 </div>
@@ -934,8 +907,8 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                 {isEditMode ? 'Booking Updated!' : 'Booking Confirmed!'}
               </h3>
               <p className="text-gray-600 dark:text-gray-300">
-                {isEditMode 
-                  ? 'Your court booking has been successfully updated.' 
+                {isEditMode
+                  ? 'Your court booking has been successfully updated.'
                   : 'Your court booking has been successfully created.'
                 }
               </p>
@@ -1005,27 +978,32 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-white dark:bg-gray-800">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+      <DialogContent className="max-w-4xl h-[90vh] max-h-[90vh] bg-white dark:bg-gray-800 flex flex-col mx-4 sm:mx-auto overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold">
             {isEditMode ? 'Edit Booking' : 'Create New Booking'}
           </DialogTitle>
         </DialogHeader>
 
         {/* Progress Indicator */}
-        <div className="space-y-4">
+        <div className="space-y-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step.id ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 dark:text-gray-300"
-                  }`}
-                >
-                  {currentStep > step.id ? <CheckCircle className="h-4 w-4" /> : <step.icon className="h-4 w-4" />}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${currentStep >= step.id ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 dark:text-gray-300"
+                      }`}
+                  >
+                    {currentStep > step.id ? <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" /> : <step.icon className="h-3 w-3 sm:h-4 sm:w-4" />}
+                  </div>
+                  <span className={`text-xs mt-1 text-center max-w-[60px] sm:max-w-none leading-tight ${currentStep >= step.id ? "text-blue-600 font-medium" : "text-gray-500 dark:text-gray-400"
+                    }`}>
+                    {step.title}
+                  </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`w-12 h-0.5 mx-2 ${currentStep > step.id ? "bg-blue-600" : "bg-gray-200"}`} />
+                  <div className={`w-4 sm:w-8 h-0.5 mx-1 sm:mx-2 mt-[-12px] ${currentStep > step.id ? "bg-blue-600" : "bg-gray-200"}`} />
                 )}
               </div>
             ))}
@@ -1034,26 +1012,32 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
         </div>
 
         {/* Step Content */}
-        <div className="flex-1 overflow-y-auto py-4">{renderStepContent()}</div>
+        <div className="flex-1 overflow-y-auto py-4 min-h-0">{renderStepContent()}</div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation Buttons - Fixed at bottom */}
         {currentStep < 5 && (
-          <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1} className="bg-transparent">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Previous
+          <div className="flex justify-between items-center pt-0 border-t flex-shrink-0 bg-white dark:bg-gray-800 mt-auto">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentStep === 1}
+              className="bg-transparent min-h-[44px] px-3 sm:px-6 text-sm sm:text-base"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </Button>
 
             {currentStep < 4 ? (
               <Button
                 onClick={handleNext}
                 disabled={!validateStep(currentStep) || isLoading}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 min-h-[44px] px-3 sm:px-6 text-sm sm:text-base"
               >
                 {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
-                  <ArrowRight className="h-4 w-4 mr-2" />
+                  <ArrowRight className="h-4 w-4 mr-1 sm:mr-2" />
                 )}
                 Next
               </Button>
@@ -1061,14 +1045,15 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
               <Button
                 onClick={handleSubmit}
                 disabled={!validateStep(currentStep) || isLoading}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 min-h-[44px] px-3 sm:px-6 text-sm sm:text-base"
               >
                 {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
-                  <CheckCircle className="h-4 w-4 mr-2" />
+                  <CheckCircle className="h-4 w-4 mr-1 sm:mr-2" />
                 )}
-                {isEditMode ? 'Update Booking' : 'Confirm Booking'}
+                <span className="hidden sm:inline">{isEditMode ? 'Update Booking' : 'Confirm Booking'}</span>
+                <span className="sm:hidden">{isEditMode ? 'Update' : 'Confirm'}</span>
               </Button>
             )}
           </div>

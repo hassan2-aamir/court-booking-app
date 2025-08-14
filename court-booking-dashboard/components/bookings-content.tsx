@@ -742,6 +742,13 @@ export function BookingsContent() {
           const apiStatus = newStatus.toUpperCase() as bookingsApi.Booking["status"]
           await handleStatusChange(bookingId, apiStatus)
         }}
+        onEditBooking={(booking) => {
+          // Convert the mapped booking back to the original booking format
+          const originalBooking = selectedBooking
+          if (originalBooking) {
+            handleEditBooking(originalBooking)
+          }
+        }}
       />
     </div>
   )

@@ -17,6 +17,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Edit,
 } from "lucide-react"
 import { format } from "date-fns"
 
@@ -40,9 +41,10 @@ interface BookingDetailsModalProps {
   isOpen: boolean
   onClose: () => void
   onStatusChange: (bookingId: string, newStatus: Booking["status"]) => void
+  onEditBooking?: (booking: Booking) => void
 }
 
-export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }: BookingDetailsModalProps) {
+export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, onEditBooking }: BookingDetailsModalProps) {
   if (!booking) return null
 
   const getStatusBadge = (status: string) => {
@@ -103,7 +105,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800"
+        className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 mx-4 sm:mx-auto"
         onCloseAutoFocus={(event) => {
           // Prevent focus issues when modal closes
           event.preventDefault()
@@ -114,7 +116,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
           <DialogTitle className="text-2xl font-bold">Booking Details - {booking.bookingId}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           {/* Left Column - Main Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Information */}
@@ -126,7 +128,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Full Name</label>
                     <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{booking.customerName}</p>
@@ -151,7 +153,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Date</label>
                     <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -166,7 +168,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Court</label>
                     <p className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
@@ -195,7 +197,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Amount</label>
                     <p className="text-2xl font-bold text-green-600 text-gray-900 dark:text-gray-100">
@@ -207,7 +209,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                     <div className="mt-1">{getPaymentBadge(booking.paymentStatus)}</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Payment Method</label>
                     <p className="text-lg text-gray-900 dark:text-gray-100">Credit Card</p>
@@ -279,7 +281,17 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange }
                       Mark as Completed
                     </Button>
                   )}
-                  <Button variant="outline" className="w-full bg-transparent">
+                  <Button 
+                    variant="outline" 
+                    className="w-full bg-transparent"
+                    onClick={() => {
+                      if (onEditBooking) {
+                        onClose() // Close the details modal first
+                        onEditBooking(booking) // Then open edit modal
+                      }
+                    }}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
                     Edit Booking
                   </Button>
                 </div>
