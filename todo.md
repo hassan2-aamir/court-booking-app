@@ -11,6 +11,7 @@ add max bookings per day to setting instaed of avialability ✅
 settings related to court within court ✅
 unavailability✅
 fix booking details
+show selected surrent selected slot highlited in edit
 make sorted by date in bookings tab
 implement dashboard (bookings today)
 Number of bookings in court

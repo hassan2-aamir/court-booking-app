@@ -764,12 +764,12 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                           key={slot.id}
                           variant={selectedSlot?.id === slot.id ? "default" : "outline"}
                           className={`p-3 h-auto flex flex-col items-start relative ${slot.status === "Available"
-                              ? selectedSlot?.id === slot.id
-                                ? "bg-blue-600 text-white"
-                                : slot.isPeakTime
-                                  ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
-                                  : "hover:bg-blue-50 bg-transparent"
-                              : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+                            ? selectedSlot?.id === slot.id
+                              ? "bg-blue-600 text-white"
+                              : slot.isPeakTime
+                                ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
+                                : "hover:bg-blue-50 bg-transparent"
+                            : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
                             }`}
                           disabled={slot.status !== "Available"}
                           onClick={() => slot.status === "Available" && setSelectedSlot(slot)}

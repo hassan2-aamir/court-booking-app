@@ -20,6 +20,8 @@ import {
   Edit,
 } from "lucide-react"
 import { format } from "date-fns"
+import { updatePaymentStatus, updateBookingStatus } from "@/lib/api/bookings"
+import { useState, useEffect } from "react"
 
 interface Booking {
   id: string
@@ -33,7 +35,8 @@ interface Booking {
   duration: string
   amount: number
   status: "Pending" | "Confirmed" | "Cancelled" | "Completed"
-  paymentStatus: "Paid" | "Unpaid" | "Partial"
+  paymentStatus: "Paid" | "Pending"
+  notes?: string
 }
 
 interface BookingDetailsModalProps {
@@ -41,10 +44,60 @@ interface BookingDetailsModalProps {
   isOpen: boolean
   onClose: () => void
   onStatusChange: (bookingId: string, newStatus: Booking["status"]) => void
+  onPaymentStatusChange?: (bookingId: string, newPaymentStatus: Booking["paymentStatus"]) => void
   onEditBooking?: (booking: Booking) => void
 }
 
-export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, onEditBooking }: BookingDetailsModalProps) {
+export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, onPaymentStatusChange, onEditBooking }: BookingDetailsModalProps) {
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [notes, setNotes] = useState(booking?.notes || "")
+
+  // Update notes when booking changes
+  useEffect(() => {
+    setNotes(booking?.notes || "")
+  }, [booking?.notes])
+
+  // Helper function to calculate actual duration from time string
+  const calculateDurationFromTimeString = (timeString: string): string => {
+    const [startTime, endTime] = timeString.split(' - ');
+    if (!startTime || !endTime) return booking?.duration || "1 hour";
+
+    const parseTime = (time: string): number => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const startMinutes = parseTime(startTime);
+    const endMinutes = parseTime(endTime);
+
+    // Handle cases where end time is on the next day
+    let durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes < 0) {
+      durationMinutes = (24 * 60 - startMinutes) + endMinutes;
+    }
+
+    const hours = durationMinutes / 60;
+
+    if (hours === 1) {
+      return "1 hour";
+    } else if (hours < 1) {
+      return `${durationMinutes} minutes`;
+    } else if (hours % 1 === 0) {
+      return `${hours} hours`;
+    } else {
+      const wholeHours = Math.floor(hours);
+      const remainingMinutes = Math.round((hours - wholeHours) * 60);
+      if (wholeHours === 0) {
+        return `${remainingMinutes} minutes`;
+      } else if (remainingMinutes === 0) {
+        return `${wholeHours} hour${wholeHours > 1 ? 's' : ''}`;
+      } else {
+        return `${wholeHours} hour${wholeHours > 1 ? 's' : ''} ${remainingMinutes} minutes`;
+      }
+    }
+  };
+
   if (!booking) return null
 
   const getStatusBadge = (status: string) => {
@@ -66,12 +119,69 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
     switch (status) {
       case "Paid":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Paid</Badge>
-      case "Unpaid":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Unpaid</Badge>
-      case "Partial":
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Partial</Badge>
+      case "Pending":
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
+    }
+  }
+
+  const handlePaymentStatusChange = async (newPaymentStatus: string) => {
+    if (!booking) return
+
+    setIsUpdatingPayment(true)
+    try {
+      // Map frontend status to backend status
+      const backendStatus = newPaymentStatus === "Paid" ? "PAID" : "PENDING"
+
+      await updatePaymentStatus(booking.id, backendStatus as "PENDING" | "PAID" | "REFUNDED")
+
+      // Call the parent callback if provided
+      if (onPaymentStatusChange) {
+        onPaymentStatusChange(booking.id, newPaymentStatus as Booking["paymentStatus"])
+      }
+    } catch (error) {
+      console.error("Failed to update payment status:", error)
+      // You might want to show a toast notification here
+    } finally {
+      setIsUpdatingPayment(false)
+    }
+  }
+
+  const handleBookingStatusChange = async (newStatus: Booking["status"]) => {
+    if (!booking) return
+
+    setIsUpdatingStatus(true)
+    try {
+      // Map frontend status to backend status
+      const backendStatus = newStatus.toUpperCase() as "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
+
+      await updateBookingStatus(booking.id, backendStatus)
+
+      // Call the parent callback if provided
+      onStatusChange(booking.id, newStatus)
+    } catch (error) {
+      console.error("Failed to update booking status:", error)
+      // You might want to show a toast notification here
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
+  const handleSaveNotes = async () => {
+    if (!booking) return
+
+    try {
+      // Import updateBooking function
+      const { updateBooking } = await import("@/lib/api/bookings")
+      
+      await updateBooking(booking.id, { notes })
+      
+      // You might want to show a success toast here
+      console.log("Notes saved successfully")
+    } catch (error) {
+      console.error("Failed to save notes:", error)
+      // You might want to show an error toast here
     }
   }
 
@@ -104,7 +214,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
+      <DialogContent
         className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 mx-4 sm:mx-auto"
         onCloseAutoFocus={(event) => {
           // Prevent focus issues when modal closes
@@ -178,7 +288,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Duration</label>
-                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{booking.duration}</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{calculateDurationFromTimeString(booking.time)}</p>
                   </div>
                 </div>
                 <div>
@@ -233,9 +343,10 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                 <Textarea
                   placeholder="Add notes about this booking..."
                   className="min-h-[100px]"
-                  defaultValue="Customer requested court near the entrance. Regular player, prefers morning slots."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
                 />
-                <Button className="mt-3" size="sm">
+                <Button className="mt-3" size="sm" onClick={handleSaveNotes}>
                   Save Notes
                 </Button>
               </CardContent>
@@ -257,7 +368,8 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                     <>
                       <Button
                         className="w-full bg-green-600 hover:bg-green-700"
-                        onClick={() => onStatusChange(booking.id, "Confirmed")}
+                        onClick={() => handleBookingStatusChange("Confirmed")}
+                        disabled={isUpdatingStatus}
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Confirm Booking
@@ -265,7 +377,8 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                       <Button
                         variant="outline"
                         className="w-full border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                        onClick={() => onStatusChange(booking.id, "Cancelled")}
+                        onClick={() => handleBookingStatusChange("Cancelled")}
+                        disabled={isUpdatingStatus}
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         Cancel Booking
@@ -275,14 +388,18 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                   {booking.status === "Confirmed" && (
                     <Button
                       className="w-full bg-blue-600 hover:bg-blue-700"
-                      onClick={() => onStatusChange(booking.id, "Completed")}
+                      onClick={() => handleBookingStatusChange("Completed")}
+                      disabled={isUpdatingStatus}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Mark as Completed
                     </Button>
                   )}
-                  <Button 
-                    variant="outline" 
+                  {isUpdatingStatus && (
+                    <p className="text-sm text-gray-500 text-center">Updating booking status...</p>
+                  )}
+                  <Button
+                    variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => {
                       if (onEditBooking) {
@@ -290,10 +407,44 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                         onEditBooking(booking) // Then open edit modal
                       }
                     }}
+                    disabled={isUpdatingStatus}
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Booking
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Status</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">{getPaymentBadge(booking.paymentStatus)}</div>
+                <Separator />
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full border-yellow-200 text-yellow-600 hover:bg-yellow-50 bg-transparent"
+                    onClick={() => handlePaymentStatusChange("Pending")}
+                    disabled={isUpdatingPayment || booking.paymentStatus === "Pending"}
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Mark Pending
+                  </Button>
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => handlePaymentStatusChange("Paid")}
+                    disabled={isUpdatingPayment || booking.paymentStatus === "Paid"}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mark Paid
+                  </Button>
+                  {isUpdatingPayment && (
+                    <p className="text-sm text-gray-500 text-center">Updating payment status...</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

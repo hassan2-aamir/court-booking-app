@@ -37,7 +37,7 @@ export function BookingsContent() {
   const [courtFilter, setCourtFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
-  
+
   // Add state for managing dropdown open states to prevent focus conflicts
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({})
 
@@ -54,6 +54,20 @@ export function BookingsContent() {
   // All useMemo and useCallback hooks
   const mappedBooking = useMemo(() => {
     if (!selectedBooking) return null;
+
+    // Map payment status to match BookingDetailsModal expectations
+    const mapPaymentStatus = (status: string): "Paid" | "Pending" => {
+      switch (status.toUpperCase()) {
+        case 'PAID':
+          return 'Paid'
+        case 'PENDING':
+        case 'UNPAID':
+        case 'PARTIAL':
+        default:
+          return 'Pending'
+      }
+    }
+
     return {
       id: selectedBooking.id,
       bookingId: selectedBooking.bookingId,
@@ -63,10 +77,46 @@ export function BookingsContent() {
       customerPhone: selectedBooking.user?.phoneNumber || 'N/A',
       courtName: selectedBooking.court?.name || 'N/A',
       courtType: selectedBooking.court?.type || 'N/A',
-      duration: `${bookingsApi.getBookingDurationHours(selectedBooking.duration)} hour${bookingsApi.getBookingDurationHours(selectedBooking.duration) > 1 ? 's' : ''}`,
+      duration: (() => {
+        // Calculate actual duration from start and end times
+        const parseTime = (timeString: string): number => {
+          const [hours, minutes] = timeString.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+        
+        const startMinutes = parseTime(selectedBooking.startTime);
+        const endMinutes = parseTime(selectedBooking.endTime);
+        
+        // Handle cases where end time is on the next day
+        let durationMinutes = endMinutes - startMinutes;
+        if (durationMinutes < 0) {
+          durationMinutes = (24 * 60 - startMinutes) + endMinutes;
+        }
+        
+        const hours = durationMinutes / 60;
+        
+        if (hours === 1) {
+          return "1 hour";
+        } else if (hours < 1) {
+          return `${durationMinutes} minutes`;
+        } else if (hours % 1 === 0) {
+          return `${hours} hours`;
+        } else {
+          const wholeHours = Math.floor(hours);
+          const remainingMinutes = Math.round((hours - wholeHours) * 60);
+          if (wholeHours === 0) {
+            return `${remainingMinutes} minutes`;
+          } else if (remainingMinutes === 0) {
+            return `${wholeHours} hour${wholeHours > 1 ? 's' : ''}`;
+          } else {
+            return `${wholeHours} hour${wholeHours > 1 ? 's' : ''} ${remainingMinutes} minutes`;
+          }
+        }
+      })(),
       amount: selectedBooking.totalPrice,
       status: selectedBooking.status.charAt(0) + selectedBooking.status.slice(1).toLowerCase() as "Confirmed" | "Pending" | "Cancelled" | "Completed",
-      paymentStatus: selectedBooking.paymentStatus.charAt(0) + selectedBooking.paymentStatus.slice(1).toLowerCase() as "Paid" | "Unpaid" | "Partial",
+      paymentStatus: mapPaymentStatus(selectedBooking.paymentStatus),
+      notes: selectedBooking.notes,
     };
   }, [selectedBooking])
 
@@ -86,7 +136,7 @@ export function BookingsContent() {
     const loadData = async () => {
       try {
         setIsLoading(true)
-        
+
         // Debug authentication state
         if (typeof window !== 'undefined') {
           const token = localStorage.getItem('access_token')
@@ -100,7 +150,7 @@ export function BookingsContent() {
             return
           }
         }
-        
+
         const [bookingsData, courtsData] = await Promise.all([
           bookingsApi.getBookings(),
           getCourts()
@@ -191,15 +241,15 @@ export function BookingsContent() {
           return booking && booking.status === "PENDING"
         })
         .map(id => bookingsApi.confirmBooking(id))
-      
+
       await Promise.all(confirmPromises)
-      
+
       // Refresh bookings data
       const updatedBookings = await bookingsApi.getBookings()
       setBookings(updatedBookings)
       setFilteredBookings(updatedBookings)
       setSelectedBookings([])
-      
+
       addToast({
         type: "success",
         title: "Bookings confirmed",
@@ -229,12 +279,18 @@ export function BookingsContent() {
   const handleStatusChange = async (bookingId: string, newStatus: bookingsApi.Booking["status"]) => {
     try {
       await bookingsApi.updateBookingStatus(bookingId, newStatus)
-      
+
       // Refresh bookings data
       const updatedBookings = await bookingsApi.getBookings()
       setBookings(updatedBookings)
       setFilteredBookings(updatedBookings)
-      
+
+      // Update the selected booking to reflect the change in the modal
+      const updatedBooking = updatedBookings.find(b => b.id === bookingId)
+      if (updatedBooking) {
+        setSelectedBooking(updatedBooking)
+      }
+
       addToast({
         type: "success",
         title: "Status updated",
@@ -316,8 +372,8 @@ export function BookingsContent() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button 
-            onClick={() => setIsModalOpen(true)} 
+          <Button
+            onClick={() => setIsModalOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 min-h-[44px]"
             data-add-booking-button
           >
@@ -574,14 +630,14 @@ export function BookingsContent() {
                       </TableCell>
                       <TableCell>{getStatusBadge(booking.status)}</TableCell>
                       <TableCell>
-                        <DropdownMenu 
+                        <DropdownMenu
                           modal={false}
                           open={openDropdowns[booking.id] || false}
                           onOpenChange={(open) => handleDropdownOpenChange(booking.id, open)}
                         >
                           <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               className="h-8 w-8 p-0"
                               aria-label={`More actions for booking ${booking.bookingId}`}
                               onFocus={() => {
@@ -597,9 +653,9 @@ export function BookingsContent() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent 
-                            align="end" 
-                            side="bottom" 
+                          <DropdownMenuContent
+                            align="end"
+                            side="bottom"
                             avoidCollisions
                             onCloseAutoFocus={(event) => {
                               // Prevent default and handle focus manually to avoid aria-hidden conflicts
@@ -624,7 +680,7 @@ export function BookingsContent() {
                               View Details
                             </DropdownMenuItem>
                             {booking.status === "PENDING" && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => {
                                   handleStatusChange(booking.id, "CONFIRMED")
                                   setOpenDropdowns(prev => ({
@@ -741,6 +797,32 @@ export function BookingsContent() {
         onStatusChange={async (bookingId: string, newStatus: "Confirmed" | "Pending" | "Cancelled" | "Completed") => {
           const apiStatus = newStatus.toUpperCase() as bookingsApi.Booking["status"]
           await handleStatusChange(bookingId, apiStatus)
+        }}
+        onPaymentStatusChange={async (bookingId: string, newPaymentStatus: "Paid" | "Pending") => {
+          try {
+            // Refresh bookings data after payment status update
+            const updatedBookings = await bookingsApi.getBookings()
+            setBookings(updatedBookings)
+            setFilteredBookings(updatedBookings)
+
+            // Update the selected booking to reflect the change
+            const updatedBooking = updatedBookings.find(b => b.id === bookingId)
+            if (updatedBooking) {
+              setSelectedBooking(updatedBooking)
+            }
+
+            addToast({
+              type: "success",
+              title: "Payment status updated",
+              description: `Payment status changed to ${newPaymentStatus}`,
+            })
+          } catch (error) {
+            addToast({
+              type: "error",
+              title: "Payment status update failed",
+              description: "Failed to update payment status",
+            })
+          }
         }}
         onEditBooking={(booking) => {
           // Convert the mapped booking back to the original booking format
