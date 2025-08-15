@@ -308,12 +308,17 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
 
       // Convert backend slots to frontend TimeSlot format
       availableSlots.forEach((slot, index) => {
+        // In edit mode, make the current booking's slot available
+        const isCurrentBookingSlot = isEditMode && booking && 
+          slot.startTime === booking.startTime && 
+          slot.endTime === booking.endTime
+        
         slots.push({
           id: `slot-${index + 1}`,
           startTime: slot.startTime,
           endTime: slot.endTime,
           price: slot.price || court.pricePerHour, // Use API price if available, fallback to court price
-          status: slot.isAvailable ? "Available" : "Booked",
+          status: (slot.isAvailable || isCurrentBookingSlot) ? "Available" : "Booked",
           isPeakTime: slot.isPeakTime || false // Include peak time information
         })
       })
@@ -750,6 +755,11 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
               <div className="space-y-4">
                 <div>
                   <Label>Available Time Slots</Label>
+                  {isEditMode && booking && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Your current booking: {booking.startTime} - {booking.endTime} (highlighted in green)
+                    </p>
+                  )}
                 </div>
 
                 {selectedDate && (
@@ -759,40 +769,58 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                         <Loader2 className="h-6 w-6 animate-spin" />
                       </div>
                     ) : (
-                      availableSlots.map((slot) => (
-                        <Button
-                          key={slot.id}
-                          variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                          className={`p-3 h-auto flex flex-col items-start relative ${slot.status === "Available"
-                            ? selectedSlot?.id === slot.id
-                              ? "bg-blue-600 text-white"
-                              : slot.isPeakTime
-                                ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
-                                : "hover:bg-blue-50 bg-transparent"
-                            : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+                      availableSlots.map((slot) => {
+                        // Check if this slot matches the current booking being edited
+                        const isCurrentBookingSlot = isEditMode && booking && 
+                          slot.startTime === booking.startTime && 
+                          slot.endTime === booking.endTime
+                        
+                        return (
+                          <Button
+                            key={slot.id}
+                            variant={selectedSlot?.id === slot.id ? "default" : "outline"}
+                            className={`p-3 h-auto flex flex-col items-start relative ${
+                              slot.status === "Available"
+                                ? selectedSlot?.id === slot.id
+                                  ? "bg-blue-600 text-white"
+                                  : isCurrentBookingSlot
+                                    ? "bg-green-100 border-green-300 hover:bg-green-150 border-2"
+                                    : slot.isPeakTime
+                                      ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
+                                      : "hover:bg-blue-50 bg-transparent"
+                                : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
                             }`}
-                          disabled={slot.status !== "Available"}
-                          onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
-                        >
-                          {slot.isPeakTime && (
-                            <Badge className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1 py-0">
-                              Peak
-                            </Badge>
-                          )}
-                          <div className="font-medium">
-                            {slot.startTime} - {slot.endTime}
-                          </div>
-                          <div className="text-sm">
-                            {slot.status === "Available"
-                              ? `PKR ${slot.price.toLocaleString()}`
-                              : "Booked"
-                            }
-                            {slot.isPeakTime && slot.status === "Available" && (
-                              <span className="text-orange-600 font-medium ml-1">(Peak)</span>
+                            disabled={slot.status !== "Available"}
+                            onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
+                          >
+                            {slot.isPeakTime && (
+                              <Badge className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1 py-0">
+                                Peak
+                              </Badge>
                             )}
-                          </div>
-                        </Button>
-                      ))
+                            {isCurrentBookingSlot && (
+                              <Badge className="absolute -top-1 -left-1 bg-green-600 text-white text-xs px-1 py-0">
+                                Current
+                              </Badge>
+                            )}
+                            <div className="font-medium">
+                              {slot.startTime} - {slot.endTime}
+                            </div>
+                            <div className="text-sm">
+                              {slot.status === "Available"
+                                ? `PKR ${slot.price.toLocaleString()}`
+                                : "Booked"
+                              }
+                              {slot.isPeakTime && slot.status === "Available" && (
+                                <span className="text-orange-600 font-medium ml-1">(Peak)</span>
+                              )}
+                              {isCurrentBookingSlot && (
+                                <span className="text-green-600 font-medium ml-1">(Your booking)</span>
+                              )}
+                            </div>
+                          </Button>
+                        )
+                      })
                     )}
                   </div>
                 )}
