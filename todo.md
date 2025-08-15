@@ -10,10 +10,11 @@ implement already booked can't be booked twice ✅
 add max bookings per day to setting instaed of avialability ✅
 settings related to court within court ✅
 unavailability✅
-fix booking details
-show selected surrent selected slot highlited in edit
-make sorted by date in bookings tab
+fix booking details ✅
+show selected surrent selected slot highlited in edit ✅
+make sorted by date in bookings tab ✅
 implement dashboard (bookings today)
+side by side utilization bookings this week
 Number of bookings in court
 Occupied available implementation in courts
 

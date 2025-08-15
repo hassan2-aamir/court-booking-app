@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Plus, Search, X, Download, RefreshCw, MoreHorizontal, Check, Edit } from "lucide-react"
+import { Eye, Plus, Search, X, Download, RefreshCw, MoreHorizontal, Check, Edit, Calendar as CalendarIcon } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { AddBookingModal } from "@/components/add-booking-modal"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
@@ -35,6 +37,7 @@ export function BookingsContent() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [courtFilter, setCourtFilter] = useState("all")
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
@@ -83,18 +86,18 @@ export function BookingsContent() {
           const [hours, minutes] = timeString.split(':').map(Number);
           return hours * 60 + minutes;
         };
-        
+
         const startMinutes = parseTime(selectedBooking.startTime);
         const endMinutes = parseTime(selectedBooking.endTime);
-        
+
         // Handle cases where end time is on the next day
         let durationMinutes = endMinutes - startMinutes;
         if (durationMinutes < 0) {
           durationMinutes = (24 * 60 - startMinutes) + endMinutes;
         }
-        
+
         const hours = durationMinutes / 60;
-        
+
         if (hours === 1) {
           return "1 hour";
         } else if (hours < 1) {
@@ -174,7 +177,7 @@ export function BookingsContent() {
     loadData()
   }, [])
 
-  // Apply filters
+  // Apply filters and sorting
   useEffect(() => {
     let filtered = [...bookings]
 
@@ -199,9 +202,61 @@ export function BookingsContent() {
       filtered = filtered.filter((booking) => booking.court?.name === courtFilter)
     }
 
+    // Apply date filter
+    if (dateFilter) {
+      filtered = filtered.filter((booking) => {
+        try {
+          // Create date objects for comparison, ignoring time
+          const filterDateObj = new Date(dateFilter.getFullYear(), dateFilter.getMonth(), dateFilter.getDate())
+          
+          let bookingDateObj: Date
+          if (typeof booking.date === 'string') {
+            bookingDateObj = new Date(booking.date)
+          } else {
+            bookingDateObj = booking.date
+          }
+          
+          // Create a date object with just the date part (no time)
+          const bookingDateOnly = new Date(bookingDateObj.getFullYear(), bookingDateObj.getMonth(), bookingDateObj.getDate())
+          
+          const match = filterDateObj.getTime() === bookingDateOnly.getTime()
+          console.log('Date filter comparison:', {
+            filterDate: filterDateObj.toISOString().split('T')[0],
+            bookingDate: bookingDateOnly.toISOString().split('T')[0],
+            originalBookingDate: booking.date,
+            match
+          })
+          
+          return match
+        } catch (error) {
+          console.error('Date parsing error:', error, booking.date)
+          return false
+        }
+      })
+    }
+
+    // Sort by date and time (newest first)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.date)
+      const dateB = new Date(b.date)
+
+      // First compare dates
+      if (dateA.getTime() !== dateB.getTime()) {
+        return dateB.getTime() - dateA.getTime() // Newest date first
+      }
+
+      // If dates are the same, compare start times
+      const timeA = a.startTime.split(':').map(Number)
+      const timeB = b.startTime.split(':').map(Number)
+      const minutesA = timeA[0] * 60 + timeA[1]
+      const minutesB = timeB[0] * 60 + timeB[1]
+
+      return minutesB - minutesA // Latest time first for same date
+    })
+
     setFilteredBookings(filtered)
     setCurrentPage(1)
-  }, [bookings, debouncedSearchTerm, statusFilter, courtFilter])
+  }, [bookings, debouncedSearchTerm, statusFilter, courtFilter, dateFilter])
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
@@ -435,6 +490,38 @@ export function BookingsContent() {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-40 min-h-[44px] justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateFilter ? format(dateFilter, "MMM dd, yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateFilter}
+                    onSelect={setDateFilter}
+                    initialFocus
+                  />
+                  {dateFilter && (
+                    <div className="p-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDateFilter(undefined)}
+                        className="w-full"
+                      >
+                        Clear date filter
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
