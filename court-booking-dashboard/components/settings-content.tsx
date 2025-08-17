@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,15 +12,20 @@ import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Building, Clock, DollarSign, CalendarDays, Phone, Mail, Save, Plus, X } from "lucide-react"
+import { settingsApi, BusinessSettings } from "@/lib/api/settings"
+import { useToast } from "@/components/toast-provider"
 
 export function SettingsContent() {
+  const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState("general")
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
   const [selectedDates, setSelectedDates] = useState<Date[]>([])
   const [newHolidayName, setNewHolidayName] = useState("")
+  const [settingsExist, setSettingsExist] = useState(false)
 
-  // General Settings State
-  const [generalSettings, setGeneralSettings] = useState({
+  // General Settings State with default values
+  const [generalSettings, setGeneralSettings] = useState<BusinessSettings>({
     businessName: "CourtBook Sports Complex",
     phone: "+92 300 1234567",
     email: "info@courtbook.com",
@@ -63,12 +68,57 @@ export function SettingsContent() {
     },
   })
 
+  // Load settings on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        setIsFetching(true)
+        const settings = await settingsApi.getBusinessSettings()
+        setGeneralSettings(settings)
+        setSettingsExist(true)
+      } catch (error) {
+        console.error('Settings not found, will create new ones on save:', error)
+        // Don't show error toast, just keep default values and mark as not existing
+        setSettingsExist(false)
+      } finally {
+        setIsFetching(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
+
   const handleSaveSettings = async () => {
-    setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    // Show success notification
+    try {
+      setIsLoading(true)
+      let updatedSettings: BusinessSettings
+      const wasExisting = settingsExist
+      
+      if (settingsExist) {
+        // Update existing settings
+        updatedSettings = await settingsApi.updateBusinessSettings(generalSettings)
+      } else {
+        // Create new settings
+        updatedSettings = await settingsApi.createBusinessSettings(generalSettings)
+        setSettingsExist(true)
+      }
+      
+      setGeneralSettings(updatedSettings)
+      addToast({
+        title: "Success",
+        description: wasExisting ? "Settings updated successfully" : "Settings created successfully",
+        type: 'success',
+      })
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+      addToast({
+        title: "Error",
+        description: "Failed to save settings",
+        type: 'error',
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const daysOfWeek = [
@@ -95,7 +145,7 @@ export function SettingsContent() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Configure your court booking system</p>
         </div>
-        <Button onClick={handleSaveSettings} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={handleSaveSettings} disabled={isLoading || isFetching} className="bg-blue-600 hover:bg-blue-700">
           <Save className="h-4 w-4 mr-2" />
           {isLoading ? "Saving..." : "Save Changes"}
         </Button>
@@ -103,12 +153,12 @@ export function SettingsContent() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1">
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             General
           </TabsTrigger>
-          <TabsTrigger value="availability" className="flex items-center gap-2">
+          {/* <TabsTrigger value="availability" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             Availability
           </TabsTrigger>
@@ -119,11 +169,21 @@ export function SettingsContent() {
           <TabsTrigger value="holidays" className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4" />
             Holidays
-          </TabsTrigger>
+          </TabsTrigger> */}
         </TabsList>
 
         {/* General Settings Tab */}
         <TabsContent value="general" className="space-y-6">
+          {isFetching ? (
+            <Card className="bg-card dark:bg-card-dark">
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-500 dark:text-gray-400">Loading settings...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <Card className="bg-card dark:bg-card-dark">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -170,64 +230,10 @@ export function SettingsContent() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-card dark:bg-card-dark">
-            <CardHeader>
-              <CardTitle>Booking Rules</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="maxBookings">Max Bookings per User/Day</Label>
-                  <Input
-                    id="maxBookings"
-                    type="number"
-                    value={generalSettings.maxBookingsPerUser}
-                    onChange={(e) =>
-                      setGeneralSettings({ ...generalSettings, maxBookingsPerUser: Number(e.target.value) })
-                    }
-                    min="1"
-                    max="10"
-                    className="bg-input dark:bg-input-dark"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="defaultDuration">Default Booking Duration</Label>
-                  <Select
-                    value={generalSettings.defaultDuration}
-                    onValueChange={(value) => setGeneralSettings({ ...generalSettings, defaultDuration: value })}
-                  >
-                    <SelectTrigger className="bg-input dark:bg-input-dark">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover dark:bg-popover-dark">
-                      <SelectItem value="0.5">30 minutes</SelectItem>
-                      <SelectItem value="1">1 hour</SelectItem>
-                      <SelectItem value="1.5">1.5 hours</SelectItem>
-                      <SelectItem value="2">2 hours</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="advanceLimit">Advance Booking Limit (days)</Label>
-                  <Input
-                    id="advanceLimit"
-                    type="number"
-                    value={generalSettings.advanceBookingLimit}
-                    onChange={(e) =>
-                      setGeneralSettings({ ...generalSettings, advanceBookingLimit: Number(e.target.value) })
-                    }
-                    min="1"
-                    max="365"
-                    className="bg-input dark:bg-input-dark"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          )}
         </TabsContent>
 
-        {/* Availability Settings Tab */}
+        {/* Availability Settings Tab
         <TabsContent value="availability" className="space-y-6">
           <Card className="bg-card dark:bg-card-dark">
             <CardHeader>
@@ -362,9 +368,9 @@ export function SettingsContent() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent> */}
 
-        {/* Pricing Settings Tab */}
+        {/* Pricing Settings Tab
         <TabsContent value="pricing" className="space-y-6">
           <Card className="bg-card dark:bg-card-dark">
             <CardHeader>
@@ -559,7 +565,7 @@ export function SettingsContent() {
           </Card>
         </TabsContent>
 
-        {/* Holidays Tab */}
+        {/* Holidays Tab 
         <TabsContent value="holidays" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="bg-card dark:bg-card-dark">
@@ -621,7 +627,7 @@ export function SettingsContent() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
     </div>
   )
