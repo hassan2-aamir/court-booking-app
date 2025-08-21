@@ -40,11 +40,11 @@ export function CustomerManagement() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "VIP":
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">VIP</Badge>
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/40">VIP</Badge>
       case "Regular":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Regular</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/40">Regular</Badge>
       case "New":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">New</Badge>
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/40">New</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -107,7 +107,7 @@ export function CustomerManagement() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold dark:bg-blue-900/30 dark:text-blue-300">
                       {getInitials(customer.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -159,7 +159,7 @@ export function CustomerManagement() {
                   <Edit className="h-3 w-3 mr-1" />
                   Edit
                 </Button>
-                <Button variant="outline" size="sm" className="px-3 text-red-600 hover:bg-red-50 bg-transparent">
+                <Button variant="outline" size="sm" className="px-3 text-red-600 hover:bg-red-50 bg-transparent dark:text-red-400 dark:hover:bg-red-900/20">
                   <UserX className="h-3 w-3" />
                 </Button>
               </div>

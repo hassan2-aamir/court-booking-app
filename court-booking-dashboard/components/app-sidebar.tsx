@@ -4,6 +4,7 @@ import type * as React from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/components/theme-provider"
+import { useBusinessSettings } from "@/hooks/use-business-settings"
 import {
   Sidebar,
   SidebarContent,
@@ -27,7 +28,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LayoutDashboard, Calendar, MapPin, Settings, User, LogOut, Sun, Moon, Monitor, ChevronUp, ChevronRight } from "lucide-react"
+import { LayoutDashboard, Calendar, MapPin, Settings, LogOut, Sun, Moon, Monitor, ChevronUp, Building2 } from "lucide-react"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activePage?: string
@@ -64,6 +65,7 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
   const router = useRouter()
   const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { settings: businessSettings } = useBusinessSettings()
 
   const handleSignOut = () => {
     signOut()
@@ -124,16 +126,14 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
                     <AvatarFallback className="rounded-lg bg-blue-600 text-white">
-                      {user?.name
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("") || "U"}
+                      <Building2 className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-gray-900 dark:text-gray-100">{user?.name}</span>
+                    <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                      {businessSettings?.businessName || "Business Name"}
+                    </span>
                     <span className="truncate text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.role}</span>
                   </div>
                   <ChevronUp className="ml-auto size-4" />
@@ -149,13 +149,13 @@ export function AppSidebar({ activePage, ...props }: AppSidebarProps) {
                   event.preventDefault()
                 }}
               >
-                <DropdownMenuItem asChild>
+                {/* <DropdownMenuItem asChild>
                   <a href="/profile" className="flex items-center gap-2 cursor-pointer">
                     <User className="h-4 w-4" />
                     <span>Profile</span>
                   </a>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator /> */}
                 
                 {/* Theme Selection Submenu */}
                 <DropdownMenuSub>

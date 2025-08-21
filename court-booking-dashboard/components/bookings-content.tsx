@@ -369,15 +369,15 @@ export function BookingsContent() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "CONFIRMED":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Confirmed</Badge>
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/40">Confirmed</Badge>
       case "PENDING":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/40">Pending</Badge>
       case "CANCELLED":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Cancelled</Badge>
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/40">Cancelled</Badge>
       case "COMPLETED":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Completed</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/40">Completed</Badge>
       case "NO_SHOW":
-        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">No Show</Badge>
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">No Show</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -386,11 +386,11 @@ export function BookingsContent() {
   const getPaymentBadge = (status: string) => {
     switch (status) {
       case "PAID":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">Paid</Badge>
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/40">Paid</Badge>
       case "PENDING":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">Pending</Badge>
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/40">Pending</Badge>
       case "REFUNDED":
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs">Refunded</Badge>
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/40">Refunded</Badge>
       default:
         return (
           <Badge variant="secondary" className="text-xs">
@@ -673,7 +673,7 @@ export function BookingsContent() {
                   </TableRow>
                 ) : (
                   currentBookings.map((booking) => (
-                    <TableRow key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <TableRow key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <TableCell>
                         <Checkbox
                           checked={selectedBookings.includes(booking.id)}

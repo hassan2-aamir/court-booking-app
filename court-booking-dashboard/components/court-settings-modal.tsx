@@ -624,7 +624,7 @@ export function CourtSettingsModal({
                     <Button 
                       onClick={handleSaveBookingLimit}
                       disabled={saving || !!bookingLimitError || !hasUnsavedChanges}
-                      className={`${hasUnsavedChanges && !bookingLimitError ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400'} disabled:opacity-50`}
+                      className={`${hasUnsavedChanges && !bookingLimitError ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 dark:bg-gray-600'} disabled:opacity-50`}
                     >
                       {saving ? (
                         <>
@@ -727,7 +727,7 @@ export function CourtSettingsModal({
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                                 onClick={() => handleDeleteUnavailability(unavailability.id)}
                                 disabled={deletingUnavailabilityId === unavailability.id}
                               >
@@ -807,7 +807,7 @@ export function CourtSettingsModal({
                                   >
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2 mb-1">
-                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/40">
                                           PKR {schedule.price.toLocaleString()}
                                         </Badge>
                                         <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -827,7 +827,7 @@ export function CourtSettingsModal({
                                       <Button 
                                         size="sm" 
                                         variant="outline" 
-                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                                         onClick={() => handleDeletePeakSchedule(schedule.id)}
                                         disabled={deletingPeakScheduleId === schedule.id}
                                       >

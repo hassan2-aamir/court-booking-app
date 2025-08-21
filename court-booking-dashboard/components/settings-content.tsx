@@ -621,7 +621,7 @@ export function SettingsContent() {
                       <div className="font-medium">Court Maintenance</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">Every Sunday 6:00 AM - 8:00 AM</div>
                     </div>
-                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Recurring</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/40">Recurring</Badge>
                   </div>
                 </div>
               </CardContent>

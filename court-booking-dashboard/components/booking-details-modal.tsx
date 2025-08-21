@@ -174,9 +174,9 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
     try {
       // Import updateBooking function
       const { updateBooking } = await import("@/lib/api/bookings")
-      
+
       await updateBooking(booking.id, { notes })
-      
+
       // You might want to show a success toast here
       console.log("Notes saved successfully")
     } catch (error) {
@@ -188,25 +188,25 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
   const bookingTimeline = [
     {
       status: "Booking Created",
-      time: "2 hours ago",
+      // time: "2 hours ago",
       icon: <FileText className="h-4 w-4" />,
       completed: true,
     },
     {
       status: "Payment Received",
-      time: "1 hour ago",
+      // time: "1 hour ago",
       icon: <DollarSign className="h-4 w-4" />,
       completed: booking.paymentStatus === "Paid",
     },
     {
       status: "Booking Confirmed",
-      time: "30 minutes ago",
+      // time: "30 minutes ago",
       icon: <CheckCircle className="h-4 w-4" />,
       completed: booking.status === "Confirmed" || booking.status === "Completed",
     },
     {
       status: "Court Session",
-      time: "Scheduled",
+      // time: "Scheduled",
       icon: <MapPin className="h-4 w-4" />,
       completed: booking.status === "Completed",
     },
@@ -228,7 +228,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           {/* Left Column - Main Details */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 flex flex-col">
             {/* Customer Information */}
             <Card>
               <CardHeader>
@@ -319,8 +319,8 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                     <div className="mt-1">{getPaymentBadge(booking.paymentStatus)}</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Payment Method</label>
                     <p className="text-lg text-gray-900 dark:text-gray-100">Credit Card</p>
                   </div>
@@ -330,19 +330,19 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                       TXN-{booking.bookingId.slice(1)}-2024
                     </p>
                   </div>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
 
             {/* Notes Section */}
-            <Card>
+            <Card className="flex-1 flex flex-col min-h-0">
               <CardHeader>
                 <CardTitle>Notes & Comments</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 flex flex-col min-h-0">
                 <Textarea
                   placeholder="Add notes about this booking..."
-                  className="min-h-[100px]"
+                  className="flex-1 min-h-[120px] max-h-[300px] resize-y"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -364,54 +364,34 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                 <div className="text-center">{getStatusBadge(booking.status)}</div>
                 <Separator />
                 <div className="space-y-2">
-                  {booking.status === "Pending" && (
-                    <>
-                      <Button
-                        className="w-full bg-green-600 hover:bg-green-700"
-                        onClick={() => handleBookingStatusChange("Confirmed")}
-                        disabled={isUpdatingStatus}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Confirm Booking
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                        onClick={() => handleBookingStatusChange("Cancelled")}
-                        disabled={isUpdatingStatus}
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Cancel Booking
-                      </Button>
-                    </>
-                  )}
-                  {booking.status === "Confirmed" && (
-                    <Button
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                      onClick={() => handleBookingStatusChange("Completed")}
-                      disabled={isUpdatingStatus}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Completed
-                    </Button>
-                  )}
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                    onClick={() => handleBookingStatusChange("Confirmed")}
+                    disabled={isUpdatingStatus || booking.status === "Confirmed"}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Booking
+                  </Button>
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                    onClick={() => handleBookingStatusChange("Completed")}
+                    disabled={isUpdatingStatus || booking.status === "Completed"}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Complete Booking
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 bg-transparent disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    onClick={() => handleBookingStatusChange("Cancelled")}
+                    disabled={isUpdatingStatus || booking.status === "Cancelled" }
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Booking
+                  </Button>
                   {isUpdatingStatus && (
                     <p className="text-sm text-gray-500 text-center">Updating booking status...</p>
                   )}
-                  <Button
-                    variant="outline"
-                    className="w-full bg-transparent"
-                    onClick={() => {
-                      if (onEditBooking) {
-                        onClose() // Close the details modal first
-                        onEditBooking(booking) // Then open edit modal
-                      }
-                    }}
-                    disabled={isUpdatingStatus}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Booking
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -427,7 +407,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                 <div className="space-y-2">
                   <Button
                     variant="outline"
-                    className="w-full border-yellow-200 text-yellow-600 hover:bg-yellow-50 bg-transparent"
+                    className="w-full border-yellow-200 text-yellow-600 hover:bg-yellow-50 bg-transparent dark:border-yellow-800 dark:text-yellow-400 dark:hover:bg-yellow-900/20"
                     onClick={() => handlePaymentStatusChange("Pending")}
                     disabled={isUpdatingPayment || booking.paymentStatus === "Pending"}
                   >
@@ -459,7 +439,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                   {bookingTimeline.map((item, index) => (
                     <div key={index} className="flex items-start gap-3">
                       <div
-                        className={`p-2 rounded-full ${item.completed ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"}`}
+                        className={`p-2 rounded-full ${item.completed ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-300" : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"}`}
                       >
                         {item.icon}
                       </div>
@@ -469,7 +449,7 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                         >
                           {item.status}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{item.time}</p>
+                        {/* <p className="text-sm text-gray-500 dark:text-gray-400">{item.time}</p> */}
                       </div>
                     </div>
                   ))}
@@ -482,7 +462,21 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start bg-transparent"
+                  onClick={() => {
+                    if (onEditBooking) {
+                      onClose() // Close the details modal first
+                      onEditBooking(booking) // Then open edit modal
+                    }
+                  }}
+                  disabled={isUpdatingStatus}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Booking
+                </Button>
                 <Button variant="outline" className="w-full justify-start bg-transparent">
                   <Phone className="h-4 w-4 mr-2" />
                   Call Customer
@@ -491,10 +485,10 @@ export function BookingDetailsModal({ booking, isOpen, onClose, onStatusChange, 
                   <FileText className="h-4 w-4 mr-2" />
                   Send Confirmation
                 </Button>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
+                {/* <Button variant="outline" className="w-full justify-start bg-transparent">
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Report Issue
-                </Button>
+                </Button> */}
               </CardContent>
             </Card>
           </div>

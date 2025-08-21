@@ -395,7 +395,7 @@ useEffect(() => {
 
               <CardContent className="space-y-4">
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                {/* <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-blue-600" />
                     <span className="text-gray-600 dark:text-gray-300">{court.bookingsToday} bookings today</span>
@@ -406,7 +406,7 @@ useEffect(() => {
                       {court.isAvailableNow ? "Available now" : "Occupied"}
                     </span>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Price */}
                 <div className="flex items-center gap-2">
@@ -444,7 +444,7 @@ useEffect(() => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className={`flex-shrink-0 px-3 min-w-[40px] ${court.status === "Active" ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"} bg-transparent`}
+                    className={`flex-shrink-0 px-3 min-w-[40px] ${court.status === "Active" ? "text-red-600 hover:bg-red-50  dark:hover:bg-red-900" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-900"} bg-transparent`}
                     onClick={() => handleToggleStatus(court.id)}
                     title={court.status === "Active" ? "Deactivate Court" : "Activate Court"}
                   >
@@ -453,7 +453,7 @@ useEffect(() => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-shrink-0 px-3 min-w-[40px] bg-transparent text-red-600 hover:bg-red-50"
+                    className="flex-shrink-0 px-3 min-w-[40px] bg-transparent text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
                     title="Delete Court"
                     onClick={() => handleDeleteCourt(court.id)}
                   >

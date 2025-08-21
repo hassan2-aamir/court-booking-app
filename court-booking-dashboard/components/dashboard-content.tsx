@@ -136,7 +136,7 @@ const DashboardContent: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                  ${overviewMetrics.revenueThisMonth.toLocaleString()}
+                  PKR {overviewMetrics.revenueThisMonth.toLocaleString()}
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">This month</p>
               </CardContent>
@@ -210,7 +210,7 @@ const DashboardContent: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                  ${todaysBookingSummary.totalRevenue.toLocaleString()}
+                  PKR {todaysBookingSummary.totalRevenue.toLocaleString()}
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Generated today</p>
               </CardContent>

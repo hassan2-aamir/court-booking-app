@@ -309,10 +309,10 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
       // Convert backend slots to frontend TimeSlot format
       availableSlots.forEach((slot, index) => {
         // In edit mode, make the current booking's slot available
-        const isCurrentBookingSlot = isEditMode && booking && 
-          slot.startTime === booking.startTime && 
+        const isCurrentBookingSlot = isEditMode && booking &&
+          slot.startTime === booking.startTime &&
           slot.endTime === booking.endTime
-        
+
         slots.push({
           id: `slot-${index + 1}`,
           startTime: slot.startTime,
@@ -686,7 +686,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                     .map((court) => (
                       <Card
                         key={court.id}
-                        className={`cursor-pointer transition-all ${selectedCourt?.id === court.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
+                        className={`cursor-pointer transition-all ${selectedCourt?.id === court.id ? "ring-2 ring-blue-500 dark:ring-blue-900 bg-blue-50 dark:bg-blue-900" : "hover:shadow-md"
                           }`}
                         onClick={() => {
                           setSelectedCourt(court)
@@ -695,8 +695,8 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                       >
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between">
-                            <CardTitle className="text-lg">{court.name}</CardTitle>
-                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{court.type}</Badge>
+                            <CardTitle className={`text-lg`}>{court.name}</CardTitle>
+                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-900">{court.type}</Badge>
                           </div>
                         </CardHeader>
                         <CardContent>
@@ -775,25 +775,24 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
                     ) : (
                       availableSlots.map((slot) => {
                         // Check if this slot matches the current booking being edited
-                        const isCurrentBookingSlot = isEditMode && booking && 
-                          slot.startTime === booking.startTime && 
+                        const isCurrentBookingSlot = isEditMode && booking &&
+                          slot.startTime === booking.startTime &&
                           slot.endTime === booking.endTime
-                        
+
                         return (
                           <Button
                             key={slot.id}
                             variant={selectedSlot?.id === slot.id ? "default" : "outline"}
-                            className={`p-3 h-auto flex flex-col items-start relative ${
-                              slot.status === "Available"
-                                ? selectedSlot?.id === slot.id
-                                  ? "bg-blue-600 text-white"
-                                  : isCurrentBookingSlot
-                                    ? "bg-green-100 border-green-300 hover:bg-green-150 border-2"
-                                    : slot.isPeakTime
-                                      ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
-                                      : "hover:bg-blue-50 bg-transparent"
-                                : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
-                            }`}
+                            className={`p-3 h-auto flex flex-col items-start relative ${slot.status === "Available"
+                              ? selectedSlot?.id === slot.id
+                                ? "bg-blue-600 text-white"
+                                : isCurrentBookingSlot
+                                  ? "bg-green-100 dark:bg-green-900 border-green-300 hover:bg-green-150 border-2"
+                                  : slot.isPeakTime
+                                    ? "hover:bg-orange-50 bg-orange-25 border-orange-200"
+                                    : "hover:bg-blue-50 hover:text-gray-900 dark:hover:bg-blue-900 dark:hover:text-white bg-transparent "
+                              : "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+                              }`}
                             disabled={slot.status !== "Available"}
                             onClick={() => slot.status === "Available" && setSelectedSlot(slot)}
                           >
@@ -832,7 +831,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
             </div>
 
             {selectedSlot && (
-              <Card className="bg-blue-50 border-blue-200">
+              <Card className="bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-900 ">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1024,7 +1023,7 @@ export function AddBookingModal({ isOpen, onClose, onSuccess, courts, booking }:
               <div key={step.id} className="flex items-center">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${currentStep >= step.id ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 dark:text-gray-300"
+                    className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${currentStep >= step.id ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600 dark:bg-gray-900"
                       }`}
                   >
                     {currentStep > step.id ? <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" /> : <step.icon className="h-3 w-3 sm:h-4 sm:w-4" />}
