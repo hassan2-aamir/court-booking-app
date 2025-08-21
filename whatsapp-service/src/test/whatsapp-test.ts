@@ -1,5 +1,5 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+import { Client, LocalAuth } from 'whatsapp-web.js';
+import { qrcode } from 'qrcode-terminal';
 
 // Create WhatsApp client
 const client = new Client({
@@ -46,7 +46,7 @@ client.on('message', async (message) => {
     
     // Ignore messages from groups and status updates
     if (message.from === 'status@broadcast') return;
-    if (message.isGroupMsg) return;
+    if (message.isStatus) return;
 
     const messageBody = message.body.toLowerCase().trim();
     let response = '';
