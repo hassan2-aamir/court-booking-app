@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import axios from 'axios';
-
+import { login } from './whatsapp-bot.controller';
 interface BookingSession {
   step: number;
   data: {
@@ -19,13 +19,20 @@ interface BookingSession {
     termsAccepted?: boolean;
     courts?: any[];
     slots?: any[];
+    accessToken?: string; // <-- Add this
+    isLoggedIn?: boolean;
+    loginPhone?: string;
+    loginPassword?: string;
   };
 }
+
 
 @Injectable()
 export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
   private client: Client;
   private sessions: Map<string, BookingSession> = new Map();
+
+  private API_BASE_URL = process.env.API_BASE_URL || "localhost:3001";
 
   onModuleInit() {
     console.log('🚀 Initializing WhatsApp Bot...');
@@ -81,14 +88,53 @@ export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
 
   // --- Booking Flow Handler ---
   private async handleBookingFlow(message: any) {
-    const chatId = message.from;
-    let session = this.sessions.get(chatId);
+      const chatId = message.from;
+  let session = this.sessions.get(chatId);
 
-    if (!session && message.body.toLowerCase() === '/book') {
-      this.sessions.set(chatId, { step: 1, data: {} });
-      await message.reply("Let's start your booking! What's your full name?");
-      return;
+  // --- WhatsApp Login Flow ---
+  if (message.body.toLowerCase() === '/login') {
+    this.sessions.set(chatId, { step: 100, data: {} }); // 100 = login step
+    await message.reply('Please enter your phone number (e.g. +923XXXXXXXXX):');
+    return;
+  }
+
+  // Login step 1: Get phone
+  if (session && session.step === 100) {
+    session.data.loginPhone = message.body.trim();
+    session.step = 101;
+    await message.reply('Enter your password:');
+    return;
+  }
+
+  // Login step 2: Get password and authenticate
+  if (session && session.step === 101) {
+    session.data.loginPassword = message.body.trim();
+    // Call your backend login API
+    try {
+      const res = await axios.post(`http://${this.API_BASE_URL}/api/auth/login`, {
+        phone: session.data.loginPhone,
+        password: session.data.loginPassword,
+      });
+      session.data.accessToken = res.data.access_token;
+      session.data.isLoggedIn = true;
+      session.step = 1; // Optionally move to booking flow
+      await message.reply('✅ Login successful! You can now use /book to start booking.');
+    } catch (err) {
+      await message.reply('❌ Login failed. Please check your credentials and try again. Type /login to retry.');
+      this.sessions.delete(chatId);
     }
+    return;
+  }
+
+    // --- Require login for booking ---
+  if (!session && message.body.toLowerCase() === '/book') {
+    await message.reply('You must login first. Type /login to begin.');
+    return;
+  }
+  if (session && !session.data.isLoggedIn && message.body.toLowerCase() === '/book') {
+    await message.reply('You must login first. Type /login to begin.');
+    return;
+  }
 
     if (!session) return;
 
